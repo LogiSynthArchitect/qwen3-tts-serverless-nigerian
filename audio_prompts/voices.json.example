@@ -1,0 +1,66 @@
+{
+  "_comment": [
+    "This is a sample voices.json configuration file.",
+    "Copy this to voices.json and customize with your own voices.",
+    "",
+    "For each voice:",
+    "- audio_file: Path to the reference audio file (relative or absolute)",
+    "- description: Human-readable description of the voice",
+    "- language: Primary language of the reference audio",
+    "- gender: Gender of the voice (optional)",
+    "- transcript: Optional - will be auto-loaded from [audio_name].txt if not provided",
+    "",
+    "IMPORTANT: Each voice needs a transcript file with the same base name.",
+    "For example, if audio_file is 'my_voice.wav', create 'my_voice.txt'",
+    "with the transcript of the reference audio."
+  ],
+  "narrator_male": {
+    "audio_file": "narrator_male.wav",
+    "description": "Professional male narrator voice, clear and articulate",
+    "language": "English",
+    "gender": "male"
+  },
+  "narrator_female": {
+    "audio_file": "narrator_female.wav",
+    "description": "Professional female narrator voice, warm and engaging",
+    "language": "English",
+    "gender": "female"
+  },
+  "news_anchor": {
+    "audio_file": "news_anchor.wav",
+    "description": "News anchor style, authoritative and clear",
+    "language": "English",
+    "gender": "male"
+  },
+  "casual_young_male": {
+    "audio_file": "casual_young_male.wav",
+    "description": "Casual conversational young male voice",
+    "language": "English",
+    "gender": "male"
+  },
+  "podcast_female": {
+    "audio_file": "podcast_female.wav",
+    "description": "Podcast host female voice, friendly and energetic",
+    "language": "English",
+    "gender": "female"
+  },
+  "chinese_male": {
+    "audio_file": "chinese_male.wav",
+    "description": "Chinese male voice, standard Mandarin",
+    "language": "Chinese",
+    "gender": "male"
+  },
+  "japanese_female": {
+    "audio_file": "japanese_female.wav",
+    "description": "Japanese female voice, polite and soft-spoken",
+    "language": "Japanese",
+    "gender": "female"
+  },
+  "example_with_explicit_transcript": {
+    "audio_file": "custom_voice.wav",
+    "description": "Example with explicit transcript (no .txt file needed)",
+    "language": "English",
+    "gender": "neutral",
+    "transcript": "This is the transcript of the reference audio file. It will be used instead of looking for a .txt file."
+  }
+}

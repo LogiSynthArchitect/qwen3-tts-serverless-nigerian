@@ -1,0 +1,50 @@
+# Reference files (from QwenLM/Qwen3-TTS) - do not commit
+CLAUDE.md
+LICENSE
+MANIFEST.in
+README.md
+assets/
+examples/
+finetuning/
+pyproject.toml
+qwen_tts/
+tmp/
+
+# Python
+__pycache__/
+*.py[cod]
+*$py.class
+*.so
+.Python
+build/
+develop-eggs/
+dist/
+downloads/
+eggs/
+.eggs/
+lib/
+lib64/
+parts/
+sdist/
+var/
+wheels/
+*.egg-info/
+.installed.cfg
+*.egg
+.idea/
+.vscode/
+venv/
+env/
+
+# Project specific
+.serena/
+output/
+*.log
+
+# Audio prompts directory (keep structure but exclude user data)
+audio_prompts/*.wav
+audio_prompts/*.mp3
+audio_prompts/*.txt
+audio_prompts/voices.json
+# Keep example file
+!audio_prompts/voices.json.example

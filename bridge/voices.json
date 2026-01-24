@@ -1,0 +1,80 @@
+{
+  "description": "Voice mappings for Qwen3-TTS CustomVoice model",
+  "openai_to_qwen3tts": {
+    "alloy": "Ryan",
+    "echo": "Aiden",
+    "fable": "Vivian",
+    "onyx": "Uncle_Fu",
+    "nova": "Serena",
+    "shimmer": "Ono_Anna"
+  },
+  "speakers": {
+    "Vivian": {
+      "description": "Bright, slightly edgy young female voice",
+      "native_language": "Chinese",
+      "gender": "female",
+      "age_range": "young"
+    },
+    "Serena": {
+      "description": "Warm, gentle young female voice",
+      "native_language": "Chinese",
+      "gender": "female",
+      "age_range": "young"
+    },
+    "Uncle_Fu": {
+      "description": "Seasoned male voice with a low, mellow timbre",
+      "native_language": "Chinese",
+      "gender": "male",
+      "age_range": "older"
+    },
+    "Dylan": {
+      "description": "Youthful Beijing male voice with a clear, natural timbre",
+      "native_language": "Chinese (Beijing Dialect)",
+      "gender": "male",
+      "age_range": "young"
+    },
+    "Eric": {
+      "description": "Lively Chengdu male voice with a slightly husky brightness",
+      "native_language": "Chinese (Sichuan Dialect)",
+      "gender": "male",
+      "age_range": "young"
+    },
+    "Ryan": {
+      "description": "Dynamic male voice with strong rhythmic drive",
+      "native_language": "English",
+      "gender": "male",
+      "age_range": "adult"
+    },
+    "Aiden": {
+      "description": "Sunny American male voice with a clear midrange",
+      "native_language": "English",
+      "gender": "male",
+      "age_range": "young_adult"
+    },
+    "Ono_Anna": {
+      "description": "Playful Japanese female voice with a light, nimble timbre",
+      "native_language": "Japanese",
+      "gender": "female",
+      "age_range": "young"
+    },
+    "Sohee": {
+      "description": "Warm Korean female voice with rich emotion",
+      "native_language": "Korean",
+      "gender": "female",
+      "age_range": "young_adult"
+    }
+  },
+  "supported_languages": [
+    "Auto",
+    "Chinese",
+    "English",
+    "Japanese",
+    "Korean",
+    "German",
+    "French",
+    "Russian",
+    "Portuguese",
+    "Spanish",
+    "Italian"
+  ]
+}
