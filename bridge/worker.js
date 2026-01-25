@@ -48,8 +48,8 @@ export default {
       });
     }
 
-    // Authenticate request (if AUTH_TOKEN is configured)
-    if (env.AUTH_TOKEN) {
+    // Authenticate request (if API_KEY is configured)
+    if (env.API_KEY) {
       const authHeader = request.headers.get('Authorization');
 
       if (!authHeader) {
@@ -74,7 +74,7 @@ export default {
 
       const token = authHeader.replace(/^Bearer\s+/i, '');
 
-      if (token !== env.AUTH_TOKEN) {
+      if (token !== env.API_KEY) {
         return new Response(
           JSON.stringify({
             error: {

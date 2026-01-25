@@ -7,7 +7,7 @@ compatibility_date = "2024-01-01"
 # RUNPOD_URL = "https://api.runpod.ai/v2/some-id"
 # RUNPOD_API_KEY = "runpod-api-key"
 # Optional: Authentication
-# AUTH_TOKEN = "your-optional-auth-token"
+# API_KEY = "your-optional-api-key"
 
 # R2 storage (optional, for voice audio files)
 # [[r2_buckets]]
