@@ -75,12 +75,15 @@ def upload_to_s3(audio_buffer, filename):
 
     try:
         import boto3
+        from botocore.config import Config
+        
         s3 = boto3.client(
             's3',
             endpoint_url=config.S3_ENDPOINT_URL,
             aws_access_key_id=config.S3_ACCESS_KEY_ID,
             aws_secret_access_key=config.S3_SECRET_ACCESS_KEY,
-            region_name=config.S3_REGION
+            region_name=config.S3_REGION,
+            config=Config(signature_version='s3v4')
         )
 
         s3.upload_fileobj(
