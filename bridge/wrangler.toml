@@ -4,8 +4,8 @@ compatibility_date = "2024-01-01"
 
 # Environment variables (set via `npx wrangler secret put <NAME>`)
 # RunPod configuration
-# RUNPOD_URL = "https://api.runpod.ai/v2/YOUR_ENDPOINT_ID"
-# RUNPOD_API_KEY = "your-runpod-api-key"
+# RUNPOD_URL = "https://api.runpod.ai/v2/some-id"
+# RUNPOD_API_KEY = "runpod-api-key"
 # Optional: Authentication
 # AUTH_TOKEN = "your-optional-auth-token"
 
@@ -16,3 +16,7 @@ compatibility_date = "2024-01-01"
 
 [vars]
 ENVIRONMENT = "production"
+
+[observability.logs]
+enabled = false
+invocation_logs = true
