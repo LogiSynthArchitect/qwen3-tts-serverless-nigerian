@@ -16,6 +16,9 @@ numpy>=1.26.0
 # HTTP/server dependencies
 boto3>=1.26.0
 
+# Model download acceleration
+hf_transfer
+
 # Optional: FlashAttention 2 for GPU memory optimization
 # (Installed separately in bootstrap.sh)
 # flash-attn
