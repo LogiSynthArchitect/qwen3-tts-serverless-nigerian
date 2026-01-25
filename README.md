@@ -261,6 +261,32 @@ curl -X POST https://api.runpod.ai/v2/YOUR_ENDPOINT_ID/runsync \
 *Required if `ref_audio` not provided
 **Required if `voice` not provided
 
+#### Using the `instruct` Parameter
+
+The `instruct` parameter accepts natural language descriptions to control voice characteristics. This works for both CustomVoice and VoiceDesign modes.
+
+**Speed Control** (no numeric speed parameter exists):
+- `"Speak slowly and deliberately"` / `"语速放慢"`
+- `"Speak at a calm, measured pace"`
+- `"Speak quickly"` / `"语速极快"`
+
+**Emotion & Tone**:
+- `"Very happy and energetic"`
+- `"Speak in a serious, authoritative tone"`
+- `"用特别愤怒的语气说"` (speak in an angry tone)
+
+**Combined Example**:
+```json
+{
+  "text": "Important announcement.",
+  "mode": "custom_voice",
+  "speaker": "Ryan",
+  "instruct": "Speak slowly and clearly with a calm, professional tone"
+}
+```
+
+**Note**: The OpenAI TTS API's `speed` parameter (0.25-4.0) is not supported via the Cloudflare bridge. Use direct RunPod requests with the `instruct` parameter for speech rate control.
+
 ### Response Format (Batch Mode)
 
 ```json
@@ -348,7 +374,7 @@ data: {"status": "complete", "total_chunks": 1, "elapsed_time_seconds": 2.3}
    npx wrangler secret put RUNPOD_URL
    npx wrangler secret put RUNPOD_API_KEY
    # Optional:
-   npx wrangler secret put AUTH_TOKEN
+   npx wrangler secret put API_KEY
    ```
 
 3. **Update `wrangler.toml`:**
@@ -382,7 +408,7 @@ data: {"status": "complete", "total_chunks": 1, "elapsed_time_seconds": 2.3}
 |----------|-------------|----------|
 | `RUNPOD_URL` | RunPod serverless endpoint URL | Yes |
 | `RUNPOD_API_KEY` | RunPod API key | Yes |
-| `AUTH_TOKEN` | Optional authentication token | No |
+| `API_KEY` | Optional authentication token | No |
 
 ## File Structure
 

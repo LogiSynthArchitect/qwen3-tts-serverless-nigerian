@@ -3,27 +3,7 @@
  *
  * Translates OpenAI Text-to-Speech API requests to RunPod Qwen3-TTS format
  * and returns OpenAI-compatible responses (raw audio bytes).
- *
- * Supports streaming via RunPod Serverless streaming protocol.
  */
-
-// Cache for voice mappings (5 minute TTL)
-let voiceMappingCache = null;
-let lastFetch = 0;
-const CACHE_TTL = 5 * 60 * 1000; // 5 minutes
-
-// Qwen3-TTS CustomVoice speakers
-const QWEN3TTS_SPEAKERS = [
-    "Vivian",      // Bright, slightly edgy young female (Chinese)
-    "Serena",      // Warm, gentle young female (Chinese)
-    "Uncle_Fu",    // Seasoned male, low/mellow timbre (Chinese)
-    "Dylan",       // Youthful Beijing male, clear/natural (Chinese)
-    "Eric",        // Lively Chengdu male, husky/bright (Chinese)
-    "Ryan",        // Dynamic male, strong rhythmic drive (English)
-    "Aiden",       // Sunny American male, clear midrange (English)
-    "Ono_Anna",    // Playful Japanese female, light/nimble (Japanese)
-    "Sohee",       // Warm Korean female, rich emotion (Korean)
-];
 
 export default {
   async fetch(request, env, ctx) {
@@ -109,56 +89,49 @@ export default {
   }
 };
 
+/**
+ * Handle OpenAI TTS Request
+ */
 async function handleOpenAITTS(request, env) {
   try {
-    // Parse OpenAI TTS request
+    // 1. Validate Env
+    if (!env.RUNPOD_URL || !env.RUNPOD_API_KEY) {
+      console.error('CRITICAL: RunPod configuration missing!');
+      return openaiError('Server configuration error', 'server_error', null);
+    }
+
+    const apiKeyPreview = env.RUNPOD_API_KEY.substring(0, 4) + '...' + env.RUNPOD_API_KEY.substring(env.RUNPOD_API_KEY.length - 4);
+    console.log(`Configured RunPod URL: ${env.RUNPOD_URL}, API Key: ${apiKeyPreview}`);
+
+    // 2. Parse Request
     const openaiRequest = await request.json();
+    const { model, input, voice, response_format = 'mp3', stream = false } = openaiRequest;
 
-    // Validate required fields
-    const { model, input, voice, response_format = 'mp3', speed = 1.0, stream = false } = openaiRequest;
-
-    if (!model) {
-      return openaiError('Missing required parameter: model', 'invalid_request_error', 'model');
-    }
-    if (!input) {
-      return openaiError('Missing required parameter: input', 'invalid_request_error', 'input');
-    }
-    if (!voice) {
-      return openaiError('Missing required parameter: voice', 'invalid_request_error', 'voice');
+    if (!input || !voice) {
+      return openaiError('Missing required parameters', 'invalid_request_error', null);
     }
 
-    // Determine Speaker and Mode
-    // 1. Try to map OpenAI name to built-in speaker
-    // 2. Check if it's already a built-in speaker name
-    // 3. Otherwise, treat as a custom voice from voices.json (voice_clone mode)
-    
+    // 3. Map Voice/Mode
     let targetVoice = voice;
     let mode = 'custom_voice';
     
-    const mappedSpeaker = mapOpenAIVoiceToBuiltIn(voice);
-    if (mappedSpeaker) {
-      targetVoice = mappedSpeaker;
+    const QWEN3TTS_SPEAKERS = ["Vivian", "Serena", "Uncle_Fu", "Dylan", "Eric", "Ryan", "Aiden", "Ono_Anna", "Sohee"];
+    const mapping = { 'alloy': 'Ryan', 'echo': 'Aiden', 'fable': 'Vivian', 'onyx': 'Uncle_Fu', 'nova': 'Serena', 'shimmer': 'Ono_Anna' };
+    
+    if (mapping[voice]) {
+      targetVoice = mapping[voice];
       mode = 'custom_voice';
     } else if (QWEN3TTS_SPEAKERS.includes(voice)) {
       targetVoice = voice;
       mode = 'custom_voice';
     } else {
-      // It's a custom voice (like 'Dorota')
       targetVoice = voice;
       mode = 'voice_clone';
     }
 
-    // Warn about unsupported features
-    if (response_format !== 'mp3' && response_format !== 'pcm') {
-      console.warn(`Unsupported response_format: ${response_format}. Only 'mp3' or 'pcm' supported.`);
-    }
-    if (speed !== 1.0) {
-      console.warn(`Speed parameter (${speed}) is not supported and will be ignored.`);
-    }
+    console.log(`Request: voice=${voice}→${targetVoice}, mode=${mode}, text_len=${input.length}, stream=${stream}`);
 
-    console.log(`OpenAI TTS request: voice=${voice}→${targetVoice}, mode=${mode}, text_len=${input.length}, format=${response_format}, stream=${stream}`);
-
-    // If streaming is requested, delegate to streaming handler
+    // 4. Delegate to Streaming or Batch
     if (stream) {
       return handleOpenAIStreaming(env, {
         text: input,
@@ -168,34 +141,21 @@ async function handleOpenAITTS(request, env) {
       });
     }
 
-    // --- BATCH MODE ---
-
-    // Translate to RunPod Qwen3-TTS format
+    // --- BATCH MODE (Async /run + Poll) ---
     const runpodRequest = {
       input: {
         text: input,
         mode: mode,
         language: 'Auto',
         stream: false,
-        // Depending on mode, pass either 'speaker' or 'voice'
         ...(mode === 'custom_voice' ? { speaker: targetVoice } : { voice: targetVoice })
       }
     };
 
-    // Use /runsync for direct synchronous execution
-    let syncUrl = env.RUNPOD_URL;
-    if (!syncUrl.endsWith('/runsync')) {
-      if (syncUrl.endsWith('/run')) {
-        syncUrl = syncUrl.slice(0, -4) + '/runsync';
-      } else {
-        syncUrl = syncUrl.replace(/\/$/, '') + '/runsync';
-      }
-    }
+    const runUrl = env.RUNPOD_URL.replace(/\/runsync$/, '/run').replace(/\/$/, '') + (env.RUNPOD_URL.endsWith('/run') ? '' : '/run');
+    console.log(`Submitting async job to: ${runUrl}`);
 
-    console.log(`Using RunPod /runsync endpoint: ${syncUrl}`);
-
-    // Submit job to /runsync
-    const runResponse = await fetch(syncUrl, {
+    const runResponse = await fetch(runUrl, {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',
@@ -206,71 +166,14 @@ async function handleOpenAITTS(request, env) {
 
     if (!runResponse.ok) {
       const errorText = await runResponse.text();
-      console.error('RunPod /runsync error:', errorText);
-      return openaiError(
-        `RunPod service error: ${runResponse.status} ${runResponse.statusText}`,
-        'server_error',
-        null
-      );
+      console.error(`RunPod /run failed: ${runResponse.status}. Body: ${errorText}`);
+      return openaiError(`RunPod gateway error: ${runResponse.status}`, 'server_error', null);
     }
 
     const jobData = await runResponse.json();
+    console.log(`Job submitted. ID: ${jobData.id}, Status: ${jobData.status}`);
 
-    // Check job status
-    if (jobData.status !== 'COMPLETED') {
-      console.warn(`Job did not complete synchronously: status=${jobData.status}. Job ID: ${jobData.id}`);
-      return handleAsyncPollingFallback(jobData.id, env);
-    }
-
-    // Extract from output array
-    let output = jobData.output;
-    if (Array.isArray(output) && output.length > 0) {
-      output = output[output.length - 1];
-    }
-
-    console.log('[Batch] /runsync response: status=' + jobData.status + ', output type=' + typeof output);
-
-    // Check for errors
-    if (!output || output.error) {
-      const error = output?.error || 'Unknown error in RunPod output';
-      console.error('RunPod returned error:', error);
-      return openaiError(error, 'server_error', null);
-    }
-
-    // Extract audio data
-    let audioBytes;
-    let contentType = 'audio/mpeg';
-
-    if (output.audio_url) {
-      // Fetch from S3
-      console.log('Fetching audio from S3:', output.audio_url);
-      const s3Response = await fetch(output.audio_url);
-
-      if (!s3Response.ok) {
-        console.error('Failed to fetch from S3:', s3Response.status);
-        return openaiError('Failed to fetch audio from S3', 'server_error', null);
-      }
-
-      audioBytes = await s3Response.arrayBuffer();
-      contentType = 'audio/mpeg';
-
-    } else if (output.audio_base64 || output.audio) {
-      const audioBase64 = output.audio_base64 || output.audio;
-      audioBytes = base64ToArrayBuffer(audioBase64);
-
-    } else {
-      console.error('No audio data in RunPod response:', output);
-      return openaiError('No audio data returned from RunPod', 'server_error', null);
-    }
-
-    return new Response(audioBytes, {
-      status: 200,
-      headers: {
-        'Content-Type': contentType,
-        'Access-Control-Allow-Origin': '*',
-        'Cache-Control': 'no-cache'
-      }
-    });
+    return await pollJobStatus(jobData.id, env);
 
   } catch (error) {
     console.error('Worker error:', error);
@@ -279,169 +182,143 @@ async function handleOpenAITTS(request, env) {
 }
 
 /**
- * Handle Streaming OpenAI Response
- * Submits async job, polls for chunks, and pipes raw binary to response body
+ * Poll RunPod job status until completion
  */
-async function handleOpenAIStreaming(env, params) {
-  const { text, mode, speaker, output_format } = params;
-  const requestId = crypto.randomUUID();
+async function pollJobStatus(jobId, env) {
+  const statusUrl = env.RUNPOD_URL.replace(/\/(run|runsync)$/, '').replace(/\/$/, '') + `/status/${jobId}`;
+  console.log(`Polling status at: ${statusUrl}`);
 
-  // Prepare RunPod URLs
-  let runUrl = env.RUNPOD_URL;
-  let streamBaseUrl;
+  // Cloudflare limit: 50 subrequests.
+  // We use 3s interval * 40 attempts = 120s max wait.
+  // This uses at most 40 subrequests, safe under the 50 limit.
+  const maxAttempts = 40; 
+  const pollInterval = 3000;
 
-  if (runUrl.endsWith('/runsync')) {
-    runUrl = runUrl.slice(0, -8) + '/run';
-    streamBaseUrl = runUrl.slice(0, -4) + '/stream';
-  } else if (runUrl.endsWith('/run')) {
-    streamBaseUrl = runUrl.slice(0, -4) + '/stream';
-  } else {
-    runUrl = runUrl.replace(/\/$/, '') + '/run';
-    streamBaseUrl = runUrl.replace(/\/$/, '') + '/stream';
+  for (let i = 0; i < maxAttempts; i++) {
+    await new Promise(r => setTimeout(r, pollInterval));
+
+    const resp = await fetch(statusUrl, {
+      headers: { 'Authorization': `Bearer ${env.RUNPOD_API_KEY}` }
+    });
+
+    if (!resp.ok) {
+      console.warn(`Status poll ${i} failed: ${resp.status}`);
+      continue;
+    }
+
+    const data = await resp.json();
+    
+    if (data.status === 'COMPLETED') {
+      console.log('Job completed successfully.');
+      return handleJobOutput(data.output);
+    }
+
+    if (data.status === 'FAILED') {
+      console.error('Job failed on RunPod:', JSON.stringify(data, null, 2));
+      return openaiError('Inference failed on backend', 'server_error', null);
+    }
+
+    if (i % 5 === 0) console.log(`Job ${jobId} still ${data.status}...`);
   }
 
-  console.log(`[Streaming][${requestId}] Submitting job to ${runUrl}...`);
+  return openaiError('Job timed out after 2 minutes', 'server_error', null);
+}
 
-  // Submit async job
+/**
+ * Handle completed job output
+ */
+async function handleJobOutput(output) {
+  let result = Array.isArray(output) ? output[output.length - 1] : output;
+  
+  if (!result || result.error) {
+    console.error('Backend returned logical error:', result?.error || 'Empty output');
+    return openaiError(result?.error || 'Backend failed', 'server_error', null);
+  }
+
+  let audioBytes;
+  if (result.audio_url) {
+    console.log('Fetching audio from:', result.audio_url);
+    const audioResp = await fetch(result.audio_url);
+    if (!audioResp.ok) return openaiError('Failed to fetch audio from storage', 'server_error', null);
+    audioBytes = await audioResp.arrayBuffer();
+  } else if (result.audio_base64 || result.audio) {
+    audioBytes = base64ToArrayBuffer(result.audio_base64 || result.audio);
+  } else {
+    return openaiError('No audio data in response', 'server_error', null);
+  }
+
+  return new Response(audioBytes, {
+    headers: { 'Content-Type': 'audio/mpeg', 'Access-Control-Allow-Origin': '*' }
+  });
+}
+
+/**
+ * Handle Streaming OpenAI Response
+ */
+async function handleOpenAIStreaming(env, params) {
+  const { text, mode, voice, output_format } = params;
+  const runUrl = env.RUNPOD_URL.replace(/\/(runsync|run)$/, '').replace(/\/$/, '') + '/run';
+  const streamBaseUrl = env.RUNPOD_URL.replace(/\/(runsync|run)$/, '').replace(/\/$/, '') + '/stream';
+
   const runpodRequest = {
     input: {
-      text: text,
-      mode: mode,
-      speaker: speaker,
-      language: 'Auto',
-      output_format: output_format,
-      stream: true,
-      temperature: 0.9,
-      top_k: 50,
-      top_p: 1.0,
-      repetition_penalty: 1.05,
-      do_sample: true,
-      max_new_tokens: 2048
+      text, mode, language: 'Auto', output_format, stream: true,
+      ...(mode === 'custom_voice' ? { speaker: voice } : { voice: voice })
     }
   };
 
   const runResponse = await fetch(runUrl, {
     method: 'POST',
-    headers: {
-      'Content-Type': 'application/json',
-      'Authorization': `Bearer ${env.RUNPOD_API_KEY}`
-    },
+    headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${env.RUNPOD_API_KEY}` },
     body: JSON.stringify(runpodRequest)
   });
 
-  if (!runResponse.ok) {
-    const errorText = await runResponse.text();
-    console.error('RunPod /run error:', errorText);
-    return openaiError(`RunPod service error: ${runResponse.status}`, 'server_error', null);
-  }
+  if (!runResponse.ok) return openaiError(`Stream submit failed: ${runResponse.status}`, 'server_error', null);
 
   const jobData = await runResponse.json();
-  const jobId = jobData.id;
-  const streamUrl = `${streamBaseUrl}/${jobId}`;
-
-  console.log(`[Streaming][${requestId}] Job submitted: ${jobId}. Polling ${streamUrl}...`);
-
-  // Create a TransformStream for raw binary streaming
+  const streamUrl = `${streamBaseUrl}/${jobData.id}`;
   const { readable, writable } = new TransformStream();
   const writer = writable.getWriter();
 
-  // Background poller
+  // Polling Stream
   (async () => {
     try {
-      let lastStreamPosition = 0;
-      let lastChunkProcessed = 0;
-      let expectedChunks = null;
+      let lastPos = 0;
       let isFinished = false;
-      let pollInterval = 500;
       const startTime = Date.now();
-      const timeout = 300000; // 5 minutes
+      const pollInterval = 2000; // 2s interval to stay under limits
 
-      while (!isFinished && (Date.now() - startTime) < timeout) {
-        const resp = await fetch(streamUrl, {
-          headers: { 'Authorization': `Bearer ${env.RUNPOD_API_KEY}` }
-        });
-
-        if (!resp.ok) throw new Error(`Stream poll failed: ${resp.status}`);
+      while (!isFinished && (Date.now() - startTime) < 300000) {
+        const resp = await fetch(streamUrl, { headers: { 'Authorization': `Bearer ${env.RUNPOD_API_KEY}` } });
+        if (!resp.ok) break;
 
         const data = await resp.json();
-        const streamData = Array.isArray(data.stream) ? data.stream : [];
-        const outputData = Array.isArray(data.output) ? data.output : [];
-        const combinedStream = streamData.length ? streamData : outputData;
+        const stream = (data.stream || []).concat(data.output || []);
 
-        const processItems = async (items) => {
-          let processedAny = false;
-          for (const item of items) {
+        if (stream.length > lastPos) {
+          for (const item of stream.slice(lastPos)) {
             const payload = item?.output || item;
-            if (!payload) continue;
-
-            if (payload.status === 'streaming') {
-              const chunkNum = payload.chunk;
-              if (typeof chunkNum === 'number' && chunkNum <= lastChunkProcessed) {
-                continue;
-              }
-              
-              if (payload.audio_chunk) {
-                const chunkBytes = base64ToArrayBuffer(payload.audio_chunk);
-                await writer.write(new Uint8Array(chunkBytes));
-                processedAny = true;
-                if (typeof chunkNum === 'number') {
-                  lastChunkProcessed = Math.max(lastChunkProcessed, chunkNum);
-                } else {
-                  lastChunkProcessed++;
-                }
-              }
-            } else if (payload.status === 'complete') {
-              if (typeof payload.total_chunks === 'number') {
-                expectedChunks = payload.total_chunks;
-              }
-              processedAny = true;
+            if (payload.audio_chunk) {
+              await writer.write(new Uint8Array(base64ToArrayBuffer(payload.audio_chunk)));
             } else if (payload.error) {
-              console.error(`[Streaming][${requestId}] Error in stream:`, payload.error);
+              console.error('Stream item error:', payload.error);
             }
           }
-          return processedAny;
-        };
-
-        if (combinedStream.length > lastStreamPosition) {
-          const newItems = combinedStream.slice(lastStreamPosition);
-          const processed = await processItems(newItems);
-          lastStreamPosition = combinedStream.length;
-          pollInterval = processed ? 500 : Math.min(pollInterval * 1.5, 5000);
+          lastPos = stream.length;
         }
 
-        if (data.status === 'COMPLETED' || data.status === 'FAILED') {
-          // Final poll to catch remaining items
-          await new Promise(r => setTimeout(r, 250));
-          const finalResp = await fetch(streamUrl, {
-            headers: { 'Authorization': `Bearer ${env.RUNPOD_API_KEY}` }
-          });
-          if (finalResp.ok) {
-            const finalData = await finalResp.json();
-            const finalCombined = (Array.isArray(finalData.stream) ? finalData.stream : [])
-                                 .concat(Array.isArray(finalData.output) ? finalData.output : []);
-            if (finalCombined.length > lastStreamPosition) {
-              await processItems(finalCombined.slice(lastStreamPosition));
-            }
-          }
-          isFinished = true;
-        }
-
+        if (data.status === 'COMPLETED' || data.status === 'FAILED') isFinished = true;
         if (!isFinished) await new Promise(r => setTimeout(r, pollInterval));
       }
     } catch (e) {
-      console.error(`[Streaming][${requestId}] Error:`, e);
+      console.error('Stream polling error:', e);
     } finally {
       await writer.close();
     }
   })();
 
   return new Response(readable, {
-    headers: {
-      'Content-Type': output_format === 'mp3' ? 'audio/mpeg' : 'audio/pcm',
-      'Transfer-Encoding': 'chunked',
-      'Cache-Control': 'no-cache',
-      'Access-Control-Allow-Origin': '*'
-    }
+    headers: { 'Content-Type': output_format === 'mp3' ? 'audio/mpeg' : 'audio/pcm', 'Transfer-Encoding': 'chunked', 'Access-Control-Allow-Origin': '*' }
   });
 }
 
@@ -450,111 +327,18 @@ async function handleOpenAIStreaming(env, params) {
  */
 async function handleStreamingTTS(request, env) {
   try {
-    const params = await request.json();
-
-    const { text, mode = 'custom_voice', speaker, instruct, language = 'Auto',
-            ref_audio, ref_text, output_format = 'mp3' } = params;
-
-    if (!text) {
-      return errorResponse('Missing required parameter: text', 400);
-    }
-
-    // Validate mode-specific requirements
-    if (mode === 'custom_voice' && !speaker) {
-      return errorResponse('speaker parameter required for custom_voice mode', 400);
-    }
-    if (mode === 'voice_design' && !instruct) {
-      return errorResponse('instruct parameter required for voice_design mode', 400);
-    }
-    if (mode === 'voice_clone' && !ref_audio) {
-      return errorResponse('ref_audio parameter required for voice_clone mode', 400);
-    }
+    const p = await request.json();
+    if (!p.text) return errorResponse('Missing text', 400);
 
     return handleOpenAIStreaming(env, {
-      text,
-      mode,
-      speaker: speaker || 'Ryan',
-      instruct,
-      language,
-      ref_audio,
-      ref_text,
-      output_format
+      text: p.text,
+      mode: p.mode || 'custom_voice',
+      voice: p.speaker || p.voice || 'Ryan',
+      output_format: p.output_format || 'mp3'
     });
-
-  } catch (error) {
-    console.error('Streaming TTS error:', error);
-    return errorResponse(error.message, 500);
+  } catch (e) {
+    return errorResponse(e.message, 500);
   }
-}
-
-/**
- * Map OpenAI voice name to Qwen3-TTS speaker
- */
-function mapOpenAIVoiceToBuiltIn(openaiVoice) {
-  const mapping = {
-    'alloy': 'Ryan',      // Neutral male
-    'echo': 'Aiden',      // Male
-    'fable': 'Vivian',    // Female
-    'onyx': 'Uncle_Fu',   // Deep male
-    'nova': 'Serena',     // Female
-    'shimmer': 'Ono_Anna', // Female
-  };
-
-  // Return mapped speaker or check if it's already a valid Qwen3-TTS speaker
-  return mapping[openaiVoice] || (QWEN3TTS_SPEAKERS.includes(openaiVoice) ? openaiVoice : null);
-}
-
-/**
- * Handle async polling fallback for jobs that didn't complete in /runsync
- */
-async function handleAsyncPollingFallback(jobId, env) {
-  console.warn(`[Fallback] Starting polling for job ${jobId}`);
-
-  const maxAttempts = 60;  // 60 seconds max wait
-  const pollInterval = 1000;  // 1 second
-
-  for (let attempt = 0; attempt < maxAttempts; attempt++) {
-    await new Promise(resolve => setTimeout(resolve, pollInterval));
-
-    const statusUrl = env.RUNPOD_URL.replace(/\/run(sync)?$/, '') + `/status/${jobId}`;
-    const statusResponse = await fetch(statusUrl, {
-      headers: {
-        'Authorization': `Bearer ${env.RUNPOD_API_KEY}`
-      }
-    });
-
-    if (!statusResponse.ok) {
-      continue;
-    }
-
-    const statusData = await statusResponse.json();
-
-    if (statusData.status === 'COMPLETED') {
-      console.log(`[Fallback] Job completed on attempt ${attempt + 1}`);
-
-      let output = statusData.output;
-      if (Array.isArray(output) && output.length > 0) {
-        output = output[output.length - 1];
-      }
-
-      if (output && output.audio_base64) {
-        const audioBytes = base64ToArrayBuffer(output.audio_base64);
-        return new Response(audioBytes, {
-          status: 200,
-          headers: {
-            'Content-Type': 'audio/mpeg',
-            'Access-Control-Allow-Origin': '*'
-          }
-        });
-      }
-    }
-
-    if (statusData.status === 'FAILED') {
-      return openaiError('Job failed', 'server_error', null);
-    }
-  }
-
-  return openaiError('Job timed out', 'server_error', null);
 }
 
 function handleCORS() {
@@ -571,35 +355,13 @@ function handleCORS() {
 
 function openaiError(message, type, param) {
   return new Response(
-    JSON.stringify({
-      error: {
-        message: message,
-        type: type,
-        param: param,
-        code: type === 'authentication_error' ? 'invalid_token' : null
-      }
-    }),
-    {
-      status: type === 'invalid_request_error' ? 400 : 500,
-      headers: {
-        'Content-Type': 'application/json',
-        'Access-Control-Allow-Origin': '*'
-      }
-    }
+    JSON.stringify({ error: { message, type, param, code: null } }),
+    { status: type === 'invalid_request_error' ? 400 : 500, headers: { 'Content-Type': 'application/json', 'Access-Control-Allow-Origin': '*' } }
   );
 }
 
 function errorResponse(message, status) {
-  return new Response(
-    JSON.stringify({ error: message }),
-    {
-      status: status,
-      headers: {
-        'Content-Type': 'application/json',
-        'Access-Control-Allow-Origin': '*'
-      }
-    }
-  );
+  return new Response(JSON.stringify({ error: message }), { status, headers: { 'Content-Type': 'application/json', 'Access-Control-Allow-Origin': '*' } });
 }
 
 function base64ToArrayBuffer(base64) {
