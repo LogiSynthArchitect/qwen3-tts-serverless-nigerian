@@ -127,15 +127,25 @@ async function handleOpenAITTS(request, env) {
       return openaiError('Missing required parameter: voice', 'invalid_request_error', 'voice');
     }
 
-    // Map OpenAI voice to Qwen3-TTS speaker
-    const speaker = mapOpenAIVoiceToQwen3TTS(voice);
-    if (!speaker) {
-      const available = QWEN3TTS_SPEAKERS.join(', ');
-      return openaiError(
-        `Invalid voice '${voice}'. Available: ${available}`,
-        'invalid_request_error',
-        'voice'
-      );
+    // Determine Speaker and Mode
+    // 1. Try to map OpenAI name to built-in speaker
+    // 2. Check if it's already a built-in speaker name
+    // 3. Otherwise, treat as a custom voice from voices.json (voice_clone mode)
+    
+    let targetVoice = voice;
+    let mode = 'custom_voice';
+    
+    const mappedSpeaker = mapOpenAIVoiceToBuiltIn(voice);
+    if (mappedSpeaker) {
+      targetVoice = mappedSpeaker;
+      mode = 'custom_voice';
+    } else if (QWEN3TTS_SPEAKERS.includes(voice)) {
+      targetVoice = voice;
+      mode = 'custom_voice';
+    } else {
+      // It's a custom voice (like 'Dorota')
+      targetVoice = voice;
+      mode = 'voice_clone';
     }
 
     // Warn about unsupported features
@@ -146,14 +156,14 @@ async function handleOpenAITTS(request, env) {
       console.warn(`Speed parameter (${speed}) is not supported and will be ignored.`);
     }
 
-    console.log(`OpenAI TTS request: voice=${voice}→${speaker}, text_len=${input.length}, format=${response_format}, stream=${stream}`);
+    console.log(`OpenAI TTS request: voice=${voice}→${targetVoice}, mode=${mode}, text_len=${input.length}, format=${response_format}, stream=${stream}`);
 
     // If streaming is requested, delegate to streaming handler
     if (stream) {
       return handleOpenAIStreaming(env, {
         text: input,
-        mode: 'custom_voice',
-        speaker: speaker,
+        mode: mode,
+        voice: targetVoice,
         output_format: response_format === 'pcm' ? 'pcm_16' : 'mp3'
       });
     }
@@ -164,17 +174,11 @@ async function handleOpenAITTS(request, env) {
     const runpodRequest = {
       input: {
         text: input,
-        mode: 'custom_voice',
-        speaker: speaker,
-        language: 'Auto',  // Auto-detect language
-        // Use default generation parameters
-        temperature: 0.9,
-        top_k: 50,
-        top_p: 1.0,
-        repetition_penalty: 1.05,
-        do_sample: true,
-        max_new_tokens: 2048,
-        stream: false
+        mode: mode,
+        language: 'Auto',
+        stream: false,
+        // Depending on mode, pass either 'speaker' or 'voice'
+        ...(mode === 'custom_voice' ? { speaker: targetVoice } : { voice: targetVoice })
       }
     };
 
@@ -486,7 +490,7 @@ async function handleStreamingTTS(request, env) {
 /**
  * Map OpenAI voice name to Qwen3-TTS speaker
  */
-function mapOpenAIVoiceToQwen3TTS(openaiVoice) {
+function mapOpenAIVoiceToBuiltIn(openaiVoice) {
   const mapping = {
     'alloy': 'Ryan',      // Neutral male
     'echo': 'Aiden',      // Male
