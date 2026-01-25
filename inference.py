@@ -25,6 +25,7 @@ Supports three model types:
 
 import sys
 import os
+import random
 import torch
 import numpy as np
 import logging
@@ -405,44 +406,151 @@ class Qwen3TTSInference:
                         f"Supported: {supported_speakers}"
                     )
 
-    def _split_text(self, text: str, max_chars: int = None) -> List[str]:
-        """Split long text into smaller chunks at sentence boundaries."""
+    def _split_text(self, text: str, max_chars: int = None, min_chars: int = 50) -> List[str]:
+        """
+        Split text at natural speech boundaries for optimal TTS quality.
+        
+        Uses a hierarchical approach:
+        1. First split by sentence boundaries (multi-language)
+        2. If sentences too long, split by clause boundaries
+        3. If still too long, split by phrase boundaries
+        4. Last resort: split at word boundaries
+        
+        Args:
+            text: Text to split
+            max_chars: Maximum characters per chunk (default: config.MAX_CHUNK_CHARS)
+            min_chars: Minimum characters for a chunk to avoid tiny fragments (default: 50)
+            
+        Returns:
+            List of text chunks optimized for TTS generation
+        """
         max_chars = max_chars or config.MAX_CHUNK_CHARS
         
+        # No splitting needed for short text
         if len(text) <= max_chars:
             return [text]
 
-        chunks = []
         import re
-        # Split by sentence boundaries (., !, ?, etc.)
-        sentences = re.split(r'(?<=[.!?])\s+', text)
         
-        current_chunk = ""
-        for sentence in sentences:
-            if len(current_chunk) + len(sentence) <= max_chars:
-                current_chunk += (" " if current_chunk else "") + sentence
-            else:
-                if current_chunk:
-                    chunks.append(current_chunk)
-                
-                # Handle single sentence longer than max_chars
-                if len(sentence) > max_chars:
-                    # Break long sentence by commas or just length if needed
-                    sub_sentences = re.split(r'(?<=,)\s+', sentence)
-                    for sub in sub_sentences:
-                        if len(current_chunk) + len(sub) <= max_chars:
-                            current_chunk += (" " if current_chunk else "") + sub
-                        else:
-                            if current_chunk:
-                                chunks.append(current_chunk)
-                            current_chunk = sub
-                else:
-                    current_chunk = sentence
+        # Multi-language sentence boundaries
+        # English: . ! ?
+        # Chinese/Japanese: 。！？
+        # Also treat newlines as boundaries
+        sentence_pattern = r'(?<=[.!?。！？\n])\s*'
         
-        if current_chunk:
-            chunks.append(current_chunk)
+        # Clause boundaries (semicolons, colons, dashes)
+        # English: ; : — – -
+        # Chinese/Japanese: ；：
+        clause_pattern = r'(?<=[;:；：—–\-])\s*'
+        
+        # Phrase boundaries (commas and similar)
+        # English: ,
+        # Chinese: ，、
+        phrase_pattern = r'(?<=[,，、])\s*'
+        
+        def split_by_pattern(txt: str, pattern: str) -> List[str]:
+            """Split text by regex pattern, filtering empty results."""
+            parts = re.split(pattern, txt)
+            return [p.strip() for p in parts if p.strip()]
+        
+        def merge_chunks(parts: List[str], max_len: int, min_len: int) -> List[str]:
+            """
+            Merge text parts into chunks respecting max length.
+            Recursively handles parts that exceed max length.
+            """
+            chunks = []
+            current = ""
             
-        log.info(f"Split text of {len(text)} chars into {len(chunks)} chunks")
+            for part in parts:
+                if not part:
+                    continue
+                
+                # Test if adding this part would exceed max length
+                test_chunk = (current + " " + part).strip() if current else part
+                
+                if len(test_chunk) <= max_len:
+                    current = test_chunk
+                else:
+                    # Save current chunk if it has content
+                    if current:
+                        chunks.append(current)
+                    
+                    # Handle part that exceeds max length on its own
+                    if len(part) > max_len:
+                        # Try clause boundaries first
+                        sub_parts = split_by_pattern(part, clause_pattern)
+                        if len(sub_parts) > 1:
+                            sub_chunks = merge_chunks(sub_parts, max_len, min_len)
+                            if sub_chunks:
+                                chunks.extend(sub_chunks[:-1])
+                                current = sub_chunks[-1]
+                            else:
+                                current = ""
+                        else:
+                            # Try phrase boundaries
+                            sub_parts = split_by_pattern(part, phrase_pattern)
+                            if len(sub_parts) > 1:
+                                sub_chunks = merge_chunks(sub_parts, max_len, min_len)
+                                if sub_chunks:
+                                    chunks.extend(sub_chunks[:-1])
+                                    current = sub_chunks[-1]
+                                else:
+                                    current = ""
+                            else:
+                                # Last resort: split at word/character boundaries
+                                # For CJK text, we can split between any characters
+                                # For other text, split at word boundaries
+                                cjk_pattern = re.compile(r'[\u4e00-\u9fff\u3040-\u309f\u30a0-\u30ff\uac00-\ud7af]')
+                                if cjk_pattern.search(part):
+                                    # CJK text: split by characters
+                                    current = ""
+                                    for char in part:
+                                        test = current + char
+                                        if len(test) <= max_len:
+                                            current = test
+                                        else:
+                                            if current:
+                                                chunks.append(current)
+                                            current = char
+                                else:
+                                    # Non-CJK: split at word boundaries
+                                    words = part.split()
+                                    current = ""
+                                    for word in words:
+                                        test = (current + " " + word).strip() if current else word
+                                        if len(test) <= max_len:
+                                            current = test
+                                        else:
+                                            if current:
+                                                chunks.append(current)
+                                            current = word
+                    else:
+                        current = part
+            
+            # Don't forget the last chunk
+            if current:
+                chunks.append(current)
+            
+            # Merge tiny trailing chunks with previous chunk
+            # This avoids awkward short audio segments at the end
+            if len(chunks) > 1 and len(chunks[-1]) < min_len:
+                last = chunks.pop()
+                # Allow 20% overflow for natural sentence endings
+                if len(chunks[-1]) + len(last) + 1 <= max_len * 1.2:
+                    chunks[-1] = chunks[-1] + " " + last
+                else:
+                    # Can't merge, put it back
+                    chunks.append(last)
+            
+            return chunks
+        
+        # First split by sentence boundaries
+        sentences = split_by_pattern(text, sentence_pattern)
+        
+        # Merge sentences into appropriately sized chunks
+        chunks = merge_chunks(sentences, max_chars, min_chars)
+        
+        log.info(f"Split text of {len(text)} chars into {len(chunks)} chunks: {[len(c) for c in chunks]}")
         return chunks
 
     def generate_custom_voice(
@@ -488,6 +596,14 @@ class Qwen3TTSInference:
             "top_k": top_k,
             "repetition_penalty": repetition_penalty,
         }
+
+        # Set random seed for reproducibility across all chunks
+        seed = random.randint(0, 2**32 - 1)
+        random.seed(seed)
+        torch.manual_seed(seed)
+        if torch.cuda.is_available():
+            torch.cuda.manual_seed_all(seed)
+        log.info(f"Using random seed: {seed}")
 
         # For batch mode, collect all chunks
         all_wavs = []
@@ -563,6 +679,14 @@ class Qwen3TTSInference:
             "top_k": top_k,
             "repetition_penalty": repetition_penalty,
         }
+
+        # Set random seed for reproducibility across all chunks
+        seed = random.randint(0, 2**32 - 1)
+        random.seed(seed)
+        torch.manual_seed(seed)
+        if torch.cuda.is_available():
+            torch.cuda.manual_seed_all(seed)
+        log.info(f"Using random seed: {seed}")
 
         all_wavs = []
         sample_rate = 24000
@@ -709,6 +833,14 @@ class Qwen3TTSInference:
                 "subtalker_top_p": config.DEFAULT_SUBTALKER_TOP_P,
                 "subtalker_temperature": config.DEFAULT_SUBTALKER_TEMPERATURE,
             })
+
+        # Set random seed for reproducibility within this generation
+        seed = random.randint(0, 2**32 - 1)
+        random.seed(seed)
+        torch.manual_seed(seed)
+        if torch.cuda.is_available():
+            torch.cuda.manual_seed_all(seed)
+        log.info(f"Using random seed: {seed}")
 
         try:
             wavs, sr = self.model.generate_voice_clone(
