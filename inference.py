@@ -405,6 +405,46 @@ class Qwen3TTSInference:
                         f"Supported: {supported_speakers}"
                     )
 
+    def _split_text(self, text: str, max_chars: int = None) -> List[str]:
+        """Split long text into smaller chunks at sentence boundaries."""
+        max_chars = max_chars or config.MAX_CHUNK_CHARS
+        
+        if len(text) <= max_chars:
+            return [text]
+
+        chunks = []
+        import re
+        # Split by sentence boundaries (., !, ?, etc.)
+        sentences = re.split(r'(?<=[.!?])\s+', text)
+        
+        current_chunk = ""
+        for sentence in sentences:
+            if len(current_chunk) + len(sentence) <= max_chars:
+                current_chunk += (" " if current_chunk else "") + sentence
+            else:
+                if current_chunk:
+                    chunks.append(current_chunk)
+                
+                # Handle single sentence longer than max_chars
+                if len(sentence) > max_chars:
+                    # Break long sentence by commas or just length if needed
+                    sub_sentences = re.split(r'(?<=,)\s+', sentence)
+                    for sub in sub_sentences:
+                        if len(current_chunk) + len(sub) <= max_chars:
+                            current_chunk += (" " if current_chunk else "") + sub
+                        else:
+                            if current_chunk:
+                                chunks.append(current_chunk)
+                            current_chunk = sub
+                else:
+                    current_chunk = sentence
+        
+        if current_chunk:
+            chunks.append(current_chunk)
+            
+        log.info(f"Split text of {len(text)} chars into {len(chunks)} chunks")
+        return chunks
+
     def generate_custom_voice(
         self,
         text: str,
@@ -421,28 +461,12 @@ class Qwen3TTSInference:
     ) -> Union[Tuple[List[np.ndarray], int], Generator[Tuple[np.ndarray, int], None, None]]:
         """
         Generate audio using CustomVoice model (pre-defined speakers).
-
-        Args:
-            text: Text to synthesize
-            language: Language code (default: "Auto" for auto-detection)
-            speaker: Speaker name from CUSTOM_VOICE_SPEAKERS (default: "Ryan")
-            instruct: Optional instruction for voice style control
-            max_new_tokens: Maximum tokens to generate
-            do_sample: Whether to use sampling
-            temperature: Sampling temperature
-            top_p: Top-p sampling
-            top_k: Top-k sampling
-            repetition_penalty: Repetition penalty
-            streaming_mode: Enable streaming generation
-
-        Returns:
-            (wavs, sample_rate) or generator yielding (wav_chunk, sample_rate)
         """
         if self.model is None:
             self.load_model()
 
-        # Validate parameters
-        self._validate_parameters(text, language, speaker, "CustomVoice")
+        # Split text into chunks
+        text_chunks = self._split_text(text)
 
         # Set defaults
         max_new_tokens = max_new_tokens or config.DEFAULT_MAX_NEW_TOKENS
@@ -453,12 +477,7 @@ class Qwen3TTSInference:
         repetition_penalty = repetition_penalty if repetition_penalty is not None else config.DEFAULT_REPETITION_PENALTY
 
         # Normalize language
-        lang_normalized = language.title() if language != "Auto" else language
-
-        log.info(
-            f"CustomVoice generation: speaker={speaker}, language={lang_normalized}, "
-            f"text_len={len(text)}, streaming={streaming_mode}"
-        )
+        lang_normalized = language.title() if language.lower() != "auto" else "Auto"
 
         # Build generation kwargs
         gen_kwargs = {
@@ -470,30 +489,33 @@ class Qwen3TTSInference:
             "repetition_penalty": repetition_penalty,
         }
 
-        # Add subtalker parameters if available
-        if streaming_mode:
-            gen_kwargs.update({
-                "subtalker_dosample": config.DEFAULT_SUBTALKER_DOSAMPLE,
-                "subtalker_top_k": config.DEFAULT_SUBTALKER_TOP_K,
-                "subtalker_top_p": config.DEFAULT_SUBTALKER_TOP_P,
-                "subtalker_temperature": config.DEFAULT_SUBTALKER_TEMPERATURE,
-            })
+        # For batch mode, collect all chunks
+        all_wavs = []
+        sample_rate = 24000 # Default
 
-        try:
-            wavs, sr = self.model.generate_custom_voice(
-                text=text,
-                language=lang_normalized,
-                speaker=speaker,
-                instruct=instruct or "",
-                **gen_kwargs
-            )
+        for i, chunk in enumerate(text_chunks, 1):
+            log.info(f"Generating chunk {i}/{len(text_chunks)}: {len(chunk)} chars")
+            
+            # Validate parameters for this chunk
+            self._validate_parameters(chunk, language, speaker, "CustomVoice")
+            
+            try:
+                wavs, sr = self.model.generate_custom_voice(
+                    text=chunk,
+                    language=lang_normalized,
+                    speaker=speaker,
+                    instruct=instruct or "",
+                    **gen_kwargs
+                )
+                all_wavs.extend(wavs)
+                sample_rate = sr
+            except Exception as e:
+                log.error(f"Chunk {i} generation failed: {e}")
+                if not all_wavs: raise
+                break # Return what we have so far
 
-            log.info(f"Generated {len(wavs)} audio chunks, sample_rate={sr}")
-            return wavs, sr
-
-        except Exception as e:
-            log.error(f"CustomVoice generation failed: {e}")
-            raise
+        log.info(f"Generated {len(all_wavs)} audio chunks total, sample_rate={sample_rate}")
+        return all_wavs, sample_rate
 
     def generate_voice_design(
         self,
@@ -510,21 +532,6 @@ class Qwen3TTSInference:
     ) -> Union[Tuple[List[np.ndarray], int], Generator[Tuple[np.ndarray, int], None, None]]:
         """
         Generate audio using VoiceDesign model (natural language voice control).
-
-        Args:
-            text: Text to synthesize
-            language: Language code (default: "Auto" for auto-detection)
-            instruct: Natural language description of desired voice (required for VoiceDesign)
-            max_new_tokens: Maximum tokens to generate
-            do_sample: Whether to use sampling
-            temperature: Sampling temperature
-            top_p: Top-p sampling
-            top_k: Top-k sampling
-            repetition_penalty: Repetition penalty
-            streaming_mode: Enable streaming generation
-
-        Returns:
-            (wavs, sample_rate) or generator yielding (wav_chunk, sample_rate)
         """
         if self.model is None:
             self.load_model()
@@ -533,7 +540,8 @@ class Qwen3TTSInference:
         if not instruct:
             raise ValueError("instruct parameter is required for VoiceDesign model")
 
-        self._validate_parameters(text, language, None, "VoiceDesign")
+        # Split text into chunks
+        text_chunks = self._split_text(text)
 
         # Set defaults
         max_new_tokens = max_new_tokens or config.DEFAULT_MAX_NEW_TOKENS
@@ -544,12 +552,7 @@ class Qwen3TTSInference:
         repetition_penalty = repetition_penalty if repetition_penalty is not None else config.DEFAULT_REPETITION_PENALTY
 
         # Normalize language
-        lang_normalized = language.title() if language != "Auto" else language
-
-        log.info(
-            f"VoiceDesign generation: language={lang_normalized}, "
-            f"text_len={len(text)}, instruct_len={len(instruct)}, streaming={streaming_mode}"
-        )
+        lang_normalized = language.title() if language.lower() != "auto" else "Auto"
 
         # Build generation kwargs
         gen_kwargs = {
@@ -561,29 +564,29 @@ class Qwen3TTSInference:
             "repetition_penalty": repetition_penalty,
         }
 
-        # Add subtalker parameters for streaming
-        if streaming_mode:
-            gen_kwargs.update({
-                "subtalker_dosample": config.DEFAULT_SUBTALKER_DOSAMPLE,
-                "subtalker_top_k": config.DEFAULT_SUBTALKER_TOP_K,
-                "subtalker_top_p": config.DEFAULT_SUBTALKER_TOP_P,
-                "subtalker_temperature": config.DEFAULT_SUBTALKER_TEMPERATURE,
-            })
+        all_wavs = []
+        sample_rate = 24000
 
-        try:
-            wavs, sr = self.model.generate_voice_design(
-                text=text,
-                language=lang_normalized,
-                instruct=instruct,
-                **gen_kwargs
-            )
+        for i, chunk in enumerate(text_chunks, 1):
+            log.info(f"Generating chunk {i}/{len(text_chunks)}: {len(chunk)} chars")
+            self._validate_parameters(chunk, language, None, "VoiceDesign")
+            
+            try:
+                wavs, sr = self.model.generate_voice_design(
+                    text=chunk,
+                    language=lang_normalized,
+                    instruct=instruct,
+                    **gen_kwargs
+                )
+                all_wavs.extend(wavs)
+                sample_rate = sr
+            except Exception as e:
+                log.error(f"Chunk {i} generation failed: {e}")
+                if not all_wavs: raise
+                break
 
-            log.info(f"Generated {len(wavs)} audio chunks, sample_rate={sr}")
-            return wavs, sr
-
-        except Exception as e:
-            log.error(f"VoiceDesign generation failed: {e}")
-            raise
+        log.info(f"Generated {len(all_wavs)} audio chunks total, sample_rate={sample_rate}")
+        return all_wavs, sample_rate
 
     def create_voice_clone_prompt(
         self,

@@ -42,7 +42,7 @@ DEFAULT_MODEL_PATH = os.environ.get(
 TOKENIZER_MODEL_PATH = os.environ.get("TOKENIZER_PATH", "Qwen/Qwen3-TTS-Tokenizer-12Hz")
 
 # Application Configuration
-MAX_TEXT_LENGTH = int(os.environ.get("MAX_TEXT_LENGTH", "2000"))
+MAX_TEXT_LENGTH = int(os.environ.get("MAX_TEXT_LENGTH", "5000"))
 DEFAULT_SAMPLE_RATE = int(os.environ.get("DEFAULT_SAMPLE_RATE", "24000"))
 MAX_CHUNK_CHARS = int(os.environ.get("MAX_CHUNK_CHARS", "500"))  # Qwen3-TTS can handle longer chunks
 
