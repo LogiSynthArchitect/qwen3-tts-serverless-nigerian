@@ -385,9 +385,11 @@ class Qwen3TTSInference:
         # Validate language
         if language:
             supported_langs = self.get_supported_languages()
-            # Normalize language (case-insensitive)
-            lang_normalized = language.title() if language != "Auto" else language
-            if lang_normalized not in supported_langs:
+            # Normalize to lowercase for comparison, as the model returns lowercase
+            lang_lower = language.lower()
+            supported_lower = [l.lower() for l in supported_langs]
+            
+            if lang_lower not in supported_lower:
                 raise ValueError(
                     f"Invalid language: {language}. "
                     f"Supported: {supported_langs}"
