@@ -31,10 +31,11 @@ if [ ! -f "$FIRST_RUN_FLAG" ]; then
     echo "Installing Flash Attention v2.8.3..."
     pip install https://github.com/Dao-AILab/flash-attention/releases/download/v2.8.3/flash_attn-2.8.3+cu12torch2.9cxx11abiTRUE-cp312-cp312-linux_x86_64.whl
 
-    # Copy Qwen3-TTS source files to network volume
-    echo "Copying Qwen3-TTS source to network volume..."
-    mkdir -p /runpod-volume/Qwen3-TTS/src
-    cp -r /opt/docker/Qwen3-TTS/* /runpod-volume/Qwen3-TTS/src/ 2>/dev/null || true
+    # Clone Qwen3-TTS upstream repository
+    echo "Cloning Qwen3-TTS upstream repository..."
+    # We clone into 'src' directory on the volume
+    rm -rf /runpod-volume/Qwen3-TTS/src
+    git clone https://github.com/QwenLM/Qwen3-TTS.git /runpod-volume/Qwen3-TTS/src
 
     # Install qwen-tts package in editable mode
     echo "Installing qwen-tts package..."

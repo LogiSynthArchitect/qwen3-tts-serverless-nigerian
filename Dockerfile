@@ -20,17 +20,15 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
 # Set working directory
 WORKDIR /workspace
 
-# Copy source files for reference/persistence
-# We copy everything to /opt/docker/Qwen3-TTS first
-COPY . /opt/docker/Qwen3-TTS/
-
 # Copy entrypoint/handler files to /workspace
-RUN cp /opt/docker/Qwen3-TTS/handler.py /workspace/handler.py && \
-    cp /opt/docker/Qwen3-TTS/inference.py /workspace/inference.py && \
-    cp /opt/docker/Qwen3-TTS/config.py /workspace/config.py && \
-    cp /opt/docker/Qwen3-TTS/bootstrap.sh /workspace/bootstrap.sh && \
-    cp /opt/docker/Qwen3-TTS/requirements.txt /workspace/requirements.txt && \
-    chmod +x /workspace/bootstrap.sh
+COPY handler.py /workspace/handler.py
+COPY inference.py /workspace/inference.py
+COPY config.py /workspace/config.py
+COPY bootstrap.sh /workspace/bootstrap.sh
+COPY requirements.txt /workspace/requirements.txt
+
+# Make bootstrap executable
+RUN chmod +x /workspace/bootstrap.sh
 
 # Pre-install dependencies to image's python environment
 # These will also be installed to the venv during bootstrap for persistence
