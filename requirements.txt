@@ -1,11 +1,9 @@
 # Qwen3-TTS Serverless Requirements
 
 # Core ML framework
-torch>=2.0.0
-torchaudio>=2.0.0
-
-# Qwen3-TTS package
-qwen-tts
+# (Installed separately in bootstrap.sh with CUDA 12.8 support)
+# torch==2.9.1
+# torchaudio==2.9.1
 
 # RunPod serverless
 runpod>=1.6.0
@@ -13,9 +11,11 @@ runpod>=1.6.0
 # Audio processing
 librosa
 soundfile
+numpy>=1.26.0
 
 # HTTP/server dependencies
 boto3>=1.26.0
 
 # Optional: FlashAttention 2 for GPU memory optimization
-# flash-attn --no-build-isolation
+# (Installed separately in bootstrap.sh)
+# flash-attn

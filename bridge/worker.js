@@ -276,9 +276,11 @@ async function handleOpenAITTS(request, env) {
 
 /**
  * Handle Streaming OpenAI Response
+ * Submits async job, polls for chunks, and pipes raw binary to response body
  */
 async function handleOpenAIStreaming(env, params) {
   const { text, mode, speaker, output_format } = params;
+  const requestId = crypto.randomUUID();
 
   // Prepare RunPod URLs
   let runUrl = env.RUNPOD_URL;
@@ -294,7 +296,7 @@ async function handleOpenAIStreaming(env, params) {
     streamBaseUrl = runUrl.replace(/\/$/, '') + '/stream';
   }
 
-  console.log(`[Streaming] Using ${runUrl} and ${streamBaseUrl}`);
+  console.log(`[Streaming][${requestId}] Submitting job to ${runUrl}...`);
 
   // Submit async job
   const runpodRequest = {
@@ -331,84 +333,109 @@ async function handleOpenAIStreaming(env, params) {
 
   const jobData = await runResponse.json();
   const jobId = jobData.id;
+  const streamUrl = `${streamBaseUrl}/${jobId}`;
 
-  console.log(`[Streaming] Job submitted: ${jobId}`);
+  console.log(`[Streaming][${requestId}] Job submitted: ${jobId}. Polling ${streamUrl}...`);
 
-  // Create a ReadableStream for SSE
-  const stream = new ReadableStream({
-    async start(controller) {
-      try {
-        const encoder = new TextEncoder();
-        let chunkIndex = 0;
+  // Create a TransformStream for raw binary streaming
+  const { readable, writable } = new TransformStream();
+  const writer = writable.getWriter();
 
-        while (true) {
-          // Poll for stream updates
-          const streamResponse = await fetch(`${streamBaseUrl}/${jobId}`, {
-            headers: {
-              'Authorization': `Bearer ${env.RUNPOD_API_KEY}`
-            }
-          });
+  // Background poller
+  (async () => {
+    try {
+      let lastStreamPosition = 0;
+      let lastChunkProcessed = 0;
+      let expectedChunks = null;
+      let isFinished = false;
+      let pollInterval = 500;
+      const startTime = Date.now();
+      const timeout = 300000; // 5 minutes
 
-          if (!streamResponse.ok) {
-            controller.error(new Error(`Stream error: ${streamResponse.status}`));
-            return;
-          }
+      while (!isFinished && (Date.now() - startTime) < timeout) {
+        const resp = await fetch(streamUrl, {
+          headers: { 'Authorization': `Bearer ${env.RUNPOD_API_KEY}` }
+        });
 
-          const streamData = await streamResponse.json();
+        if (!resp.ok) throw new Error(`Stream poll failed: ${resp.status}`);
 
-          if (streamData.status === 'COMPLETED' || streamData.status === 'FAILED') {
-            // Send final status
-            const eventData = `event: done\ndata: ${JSON.stringify({ status: 'completed' })}\n\n`;
-            controller.enqueue(encoder.encode(eventData));
-            break;
-          }
+        const data = await resp.json();
+        const streamData = Array.isArray(data.stream) ? data.stream : [];
+        const outputData = Array.isArray(data.output) ? data.output : [];
+        const combinedStream = streamData.length ? streamData : outputData;
 
-          // Process stream output
-          if (streamData.stream && Array.isArray(streamData.stream)) {
-            for (const item of streamData.stream) {
-              if (item.status === 'streaming') {
-                // Send audio chunk
-                chunkIndex++;
-                console.log(`[Streaming] Sending chunk ${chunkIndex}`);
+        const processItems = async (items) => {
+          let processedAny = false;
+          for (const item of items) {
+            const payload = item?.output || item;
+            if (!payload) continue;
 
-                const sseData = {
-                  chunk: item.chunk,
-                  format: item.format,
-                  audio: item.audio_chunk,
-                  sample_rate: item.sample_rate
-                };
-
-                const eventData = `data: ${JSON.stringify(sseData)}\n\n`;
-                controller.enqueue(encoder.encode(eventData));
-              } else if (item.status === 'complete') {
-                console.log(`[Streaming] Complete: ${item.total_chunks} chunks`);
-                break;
-              } else if (item.error) {
-                console.error('[Streaming] Error:', item.error);
-                controller.error(new Error(item.error));
-                return;
+            if (payload.status === 'streaming') {
+              const chunkNum = payload.chunk;
+              if (typeof chunkNum === 'number' && chunkNum <= lastChunkProcessed) {
+                continue;
               }
+              
+              if (payload.audio_chunk) {
+                const chunkBytes = base64ToArrayBuffer(payload.audio_chunk);
+                await writer.write(new Uint8Array(chunkBytes));
+                processedAny = true;
+                if (typeof chunkNum === 'number') {
+                  lastChunkProcessed = Math.max(lastChunkProcessed, chunkNum);
+                } else {
+                  lastChunkProcessed++;
+                }
+              }
+            } else if (payload.status === 'complete') {
+              if (typeof payload.total_chunks === 'number') {
+                expectedChunks = payload.total_chunks;
+              }
+              processedAny = true;
+            } else if (payload.error) {
+              console.error(`[Streaming][${requestId}] Error in stream:`, payload.error);
             }
           }
+          return processedAny;
+        };
 
-          // Small delay before next poll
-          await new Promise(resolve => setTimeout(resolve, 100));
+        if (combinedStream.length > lastStreamPosition) {
+          const newItems = combinedStream.slice(lastStreamPosition);
+          const processed = await processItems(newItems);
+          lastStreamPosition = combinedStream.length;
+          pollInterval = processed ? 500 : Math.min(pollInterval * 1.5, 5000);
         }
 
-        controller.close();
+        if (data.status === 'COMPLETED' || data.status === 'FAILED') {
+          // Final poll to catch remaining items
+          await new Promise(r => setTimeout(r, 250));
+          const finalResp = await fetch(streamUrl, {
+            headers: { 'Authorization': `Bearer ${env.RUNPOD_API_KEY}` }
+          });
+          if (finalResp.ok) {
+            const finalData = await finalResp.json();
+            const finalCombined = (Array.isArray(finalData.stream) ? finalData.stream : [])
+                                 .concat(Array.isArray(finalData.output) ? finalData.output : []);
+            if (finalCombined.length > lastStreamPosition) {
+              await processItems(finalCombined.slice(lastStreamPosition));
+            }
+          }
+          isFinished = true;
+        }
 
-      } catch (error) {
-        console.error('[Streaming] Error:', error);
-        controller.error(error);
+        if (!isFinished) await new Promise(r => setTimeout(r, pollInterval));
       }
+    } catch (e) {
+      console.error(`[Streaming][${requestId}] Error:`, e);
+    } finally {
+      await writer.close();
     }
-  });
+  })();
 
-  return new Response(stream, {
+  return new Response(readable, {
     headers: {
-      'Content-Type': 'text/event-stream',
+      'Content-Type': output_format === 'mp3' ? 'audio/mpeg' : 'audio/pcm',
+      'Transfer-Encoding': 'chunked',
       'Cache-Control': 'no-cache',
-      'Connection': 'keep-alive',
       'Access-Control-Allow-Origin': '*'
     }
   });

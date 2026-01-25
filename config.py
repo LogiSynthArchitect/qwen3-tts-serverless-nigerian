@@ -19,12 +19,6 @@ import os
 # Environment Variables
 HF_TOKEN = os.environ.get("HF_TOKEN")
 
-# HuggingFace cache configuration (use qwen3-tts subdirectory on network volume)
-HF_HOME = os.environ.get("HF_HOME", "/runpod-volume/Qwen3-TTS/hf_home")
-HF_HUB_CACHE = os.environ.get("HF_HUB_CACHE", "/runpod-volume/Qwen3-TTS/hf_cache")
-os.environ["HF_HOME"] = HF_HOME
-os.environ["HF_HUB_CACHE"] = HF_HUB_CACHE
-
 # S3 Configuration (optional, for audio output storage)
 S3_ENDPOINT_URL = os.environ.get("S3_ENDPOINT_URL")
 S3_ACCESS_KEY_ID = os.environ.get("S3_ACCESS_KEY_ID")

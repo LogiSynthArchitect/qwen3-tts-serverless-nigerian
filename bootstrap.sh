@@ -5,11 +5,7 @@ echo "=== Qwen3-TTS RunPod Serverless Bootstrap ==="
 
 # Create Qwen3-TTS directory structure on network volume
 echo "Creating directory structure on network volume..."
-mkdir -p /runpod-volume/Qwen3-TTS/{hf_home,hf_cache,models,output,audio_prompts}
-
-# Set environment variables for HuggingFace cache
-export HF_HOME="/runpod-volume/Qwen3-TTS/hf_home"
-export HF_HUB_CACHE="/runpod-volume/Qwen3-TTS/hf_cache"
+mkdir -p /runpod-volume/Qwen3-TTS/{models,output,audio_prompts}
 
 # Virtual Environment Path on Network Volume
 VENV_PATH="/runpod-volume/Qwen3-TTS/venv"
@@ -28,15 +24,19 @@ if [ ! -f "$FIRST_RUN_FLAG" ]; then
     source "$VENV_PATH/bin/activate"
 
     # Install PyTorch with CUDA support
-    echo "Installing PyTorch..."
-    pip install torch torchaudio --index-url https://download.pytorch.org/whl/cu121
+    echo "Installing PyTorch 2.9.1 with CUDA 12.8 support..."
+    pip install torch==2.9.1 torchvision==0.24.1 torchaudio==2.9.1 --index-url https://download.pytorch.org/whl/cu128
+
+    # Install Flash Attention
+    echo "Installing Flash Attention v2.8.3..."
+    pip install https://github.com/Dao-AILab/flash-attention/releases/download/v2.8.3/flash_attn-2.8.3+cu12torch2.9cxx11abiTRUE-cp312-cp312-linux_x86_64.whl
 
     # Copy Qwen3-TTS source files to network volume
     echo "Copying Qwen3-TTS source to network volume..."
     mkdir -p /runpod-volume/Qwen3-TTS/src
     cp -r /opt/docker/Qwen3-TTS/* /runpod-volume/Qwen3-TTS/src/ 2>/dev/null || true
 
-    # Install qwen-tts package
+    # Install qwen-tts package in editable mode
     echo "Installing qwen-tts package..."
     cd /runpod-volume/Qwen3-TTS/src
     pip install -e .
@@ -44,9 +44,6 @@ if [ ! -f "$FIRST_RUN_FLAG" ]; then
     # Install additional dependencies
     echo "Installing additional dependencies..."
     pip install runpod>=1.6.0 boto3>=1.26.0 librosa soundfile
-
-    # Install ffmpeg for audio encoding
-    apt-get update && apt-get install -y ffmpeg
 
     # Create first run flag
     touch "$FIRST_RUN_FLAG"
