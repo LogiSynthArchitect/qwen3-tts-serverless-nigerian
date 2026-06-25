@@ -48,3 +48,7 @@ audio_prompts/*.txt
 audio_prompts/voices.json
 # Keep example file
 !audio_prompts/voices.json.example
+.antigravitycli
+.antigravitycli/
+.claude
+.claude/
