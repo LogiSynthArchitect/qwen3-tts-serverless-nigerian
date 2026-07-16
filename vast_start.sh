@@ -31,5 +31,14 @@ echo "=== Installing app deps ==="
 pip install --no-cache-dir fastapi uvicorn runpod boto3 librosa soundfile numpy hf_transfer
 pip install --no-cache-dir -e . 2>/dev/null || pip install --no-cache-dir -r requirements.txt || true
 
+echo "=== Cloning upstream Qwen3-TTS + installing qwen_tts package ==="
+rm -rf /opt/docker/Qwen3-TTS
+git clone https://github.com/QwenLM/Qwen3-TTS.git /opt/docker/Qwen3-TTS
+cd /opt/docker/Qwen3-TTS
+pip install --no-cache-dir -e .
+
+echo "=== ffmpeg/sox for audio ==="
+apt-get update -qq && apt-get install -y -qq ffmpeg sox 2>/dev/null || true
+
 echo "=== Launching HTTP server (serve.py) on :$PORT ==="
 exec python "$APP_DIR/serve.py"
