@@ -1,0 +1,203 @@
+{
+  "_meta": {
+    "description": "Curated VoiceDesign preset library for Qwen3-TTS. Each preset resolves to a natural-language 'instruct' string (voice traits + emotion/style). VoiceDesign generates the voice from this text, so African/child/teen voices are achievable here but NOT in the fixed CustomVoice model.",
+    "usage": "POST /tts with {\"mode\":\"voice_design\",\"voice\":\"<id>\",\"text\":\"...\"}. Optionally add \"instruct\" to append extra emotion/style (merged after the preset)."
+  },
+  "presets": [
+    {
+      "id": "ng_male_lagos_warm",
+      "name": "Nigerian Male (Lagos, warm)",
+      "region": "Nigeria", "country": "NG", "gender": "male", "age": "adult",
+      "language": "English", "accent": "Lagos (Nigerian Pidgin-friendly)",
+      "emotion": "warm, cheerful, welcoming",
+      "instruct": "Nigerian male, deep warm voice with a clear Lagos accent, speak cheerfully and welcoming like a friendly uncle"
+    },
+    {
+      "id": "ng_male_hausa_calm",
+      "name": "Nigerian Male (Hausa, calm)",
+      "region": "Nigeria", "country": "NG", "gender": "male", "age": "adult",
+      "language": "English", "accent": "Northern Nigeria / Hausa-influenced",
+      "emotion": "calm, steady, reassuring",
+      "instruct": "Nigerian male from the north, calm steady deep voice with a gentle Hausa-influenced English accent, speak reassuringly and measured"
+    },
+    {
+      "id": "ng_female_lagos_bright",
+      "name": "Nigerian Female (Lagos, bright)",
+      "region": "Nigeria", "country": "NG", "gender": "female", "age": "adult",
+      "language": "English", "accent": "Lagos",
+      "emotion": "bright, friendly, lively",
+      "instruct": "Nigerian female, bright friendly voice with a Lagos accent, speak lively and warm like a cheerful presenter"
+    },
+    {
+      "id": "ng_female_igbo_gentle",
+      "name": "Nigerian Female (Igbo, gentle)",
+      "region": "Nigeria", "country": "NG", "gender": "female", "age": "adult",
+      "language": "English", "accent": "Southeastern Nigeria / Igbo-influenced",
+      "emotion": "gentle, soothing, polite",
+      "instruct": "Nigerian female with a soft Igbo-influenced English accent, gentle soothing voice, speak politely and kindly"
+    },
+    {
+      "id": "ng_male_yoruba_deep",
+      "name": "Nigerian Male (Yoruba, deep)",
+      "region": "Nigeria", "country": "NG", "gender": "male", "age": "adult",
+      "language": "English", "accent": "Western Nigeria / Yoruba-influenced",
+      "emotion": "confident, deep, authoritative",
+      "instruct": "Nigerian male with a deep resonant voice and a Yoruba-influenced English accent, speak confidently and with quiet authority"
+    },
+    {
+      "id": "ng_male_abuja_neutral",
+      "name": "Nigerian Male (Abuja, neutral)",
+      "region": "Nigeria", "country": "NG", "gender": "male", "age": "adult",
+      "language": "English", "accent": "Neutral Nigerian (Abuja)",
+      "emotion": "neutral, clear, professional",
+      "instruct": "Nigerian male with a neutral educated Abuja accent, clear professional voice, speak plainly and articulately"
+    },
+    {
+      "id": "ng_teen_boy_lagos",
+      "name": "Nigerian Teen Boy (Lagos)",
+      "region": "Nigeria", "country": "NG", "gender": "male", "age": "teen",
+      "language": "English", "accent": "Lagos",
+      "emotion": "energetic, playful, casual",
+      "instruct": "Nigerian teenage boy with a youthful Lagos accent, energetic playful voice, speak casually and with excitement"
+    },
+    {
+      "id": "ng_child_girl_lagos",
+      "name": "Nigerian Child Girl (Lagos)",
+      "region": "Nigeria", "country": "NG", "gender": "female", "age": "child",
+      "language": "English", "accent": "Lagos",
+      "emotion": "sweet, curious, high-pitched",
+      "instruct": "Nigerian little girl with a high-pitched sweet voice and a Lagos accent, speak curiously and with childlike wonder"
+    },
+
+    {
+      "id": "gh_male_accra",
+      "name": "Ghanaian Male (Accra)",
+      "region": "Ghana", "country": "GH", "gender": "male", "age": "adult",
+      "language": "English", "accent": "Accra (Ghanaian)",
+      "emotion": "warm, rhythmic, easygoing",
+      "instruct": "Ghanaian male with a warm rhythmic Accra accent, easygoing voice, speak with a natural melodic flow"
+    },
+    {
+      "id": "gh_female_accra",
+      "name": "Ghanaian Female (Accra)",
+      "region": "Ghana", "country": "GH", "gender": "female", "age": "adult",
+      "language": "English", "accent": "Accra (Ghanaian)",
+      "emotion": "bright, warm, expressive",
+      "instruct": "Ghanaian female with a bright expressive Accra accent, warm voice, speak with lively intonation"
+    },
+    {
+      "id": "ke_male_nairobi",
+      "name": "Kenyan Male (Nairobi)",
+      "region": "Kenya", "country": "KE", "gender": "male", "age": "adult",
+      "language": "English", "accent": "Nairobi (Kenyan)",
+      "emotion": "confident, clear, upbeat",
+      "instruct": "Kenyan male with a clear Nairobi accent, confident upbeat voice, speak with a smooth East African cadence"
+    },
+    {
+      "id": "ke_female_nairobi",
+      "name": "Kenyan Female (Nairobi)",
+      "region": "Kenya", "country": "KE", "gender": "female", "age": "adult",
+      "language": "English", "accent": "Nairobi (Kenyan)",
+      "emotion": "friendly, melodic, warm",
+      "instruct": "Kenyan female with a friendly melodic Nairobi accent, warm voice, speak with gentle musical intonation"
+    },
+    {
+      "id": "za_male_joburg",
+      "name": "South African Male (Joburg)",
+      "region": "South Africa", "country": "ZA", "gender": "male", "age": "adult",
+      "language": "English", "accent": "South African (Johannesburg)",
+      "emotion": "relaxed, deep, friendly",
+      "instruct": "South African male with a relaxed Johannesburg English accent, deep friendly voice, speak with a laid-back confident tone"
+    },
+    {
+      "id": "et_female_addis",
+      "name": "Ethiopian Female (Addis)",
+      "region": "Ethiopia", "country": "ET", "gender": "female", "age": "adult",
+      "language": "English", "accent": "Ethiopian-influenced English",
+      "emotion": "gentle, graceful, calm",
+      "instruct": "Ethiopian female with a gentle graceful voice and a soft Ethiopian-influenced English accent, speak calmly and elegantly"
+    },
+
+    {
+      "id": "us_male_general",
+      "name": "US Male (General American)",
+      "region": "United States", "country": "US", "gender": "male", "age": "adult",
+      "language": "English", "accent": "General American",
+      "emotion": "clear, friendly, neutral",
+      "instruct": "American male with a clear general-American accent, friendly neutral voice, speak naturally and confidently"
+    },
+    {
+      "id": "us_female_general",
+      "name": "US Female (General American)",
+      "region": "United States", "country": "US", "gender": "female", "age": "adult",
+      "language": "English", "accent": "General American",
+      "emotion": "warm, upbeat, clear",
+      "instruct": "American female with a warm clear general-American accent, upbeat voice, speak brightly and articulately"
+    },
+    {
+      "id": "uk_male_rp",
+      "name": "UK Male (Received Pronunciation)",
+      "region": "United Kingdom", "country": "GB", "gender": "male", "age": "adult",
+      "language": "English", "accent": "British RP",
+      "emotion": "polished, calm, articulate",
+      "instruct": "British male with a polished Received Pronunciation accent, calm articulate voice, speak with refined clarity"
+    },
+    {
+      "id": "uk_female_rp",
+      "name": "UK Female (Received Pronunciation)",
+      "region": "United Kingdom", "country": "GB", "gender": "female", "age": "adult",
+      "language": "English", "accent": "British RP",
+      "emotion": "crisp, friendly, elegant",
+      "instruct": "British female with a crisp Received Pronunciation accent, friendly elegant voice, speak with bright clarity"
+    },
+    {
+      "id": "fr_female_paris",
+      "name": "French Female (Parisian)",
+      "region": "France", "country": "FR", "gender": "female", "age": "adult",
+      "language": "French", "accent": "Parisian French",
+      "emotion": "charming, expressive, warm",
+      "instruct": "French female with a charming Parisian accent, expressive warm voice, speak with natural French intonation"
+    },
+    {
+      "id": "de_male_berlin",
+      "name": "German Male (Berlin)",
+      "region": "Germany", "country": "DE", "gender": "male", "age": "adult",
+      "language": "German", "accent": "Berlin German",
+      "emotion": "steady, direct, warm",
+      "instruct": "German male with a steady Berlin accent, warm direct voice, speak clearly and with quiet confidence"
+    },
+
+    {
+      "id": "child_boy_generic",
+      "name": "Child Boy (Generic)",
+      "region": "Global", "country": null, "gender": "male", "age": "child",
+      "language": "English", "accent": "Neutral",
+      "emotion": "playful, curious, high-pitched",
+      "instruct": "Little boy with a high-pitched playful voice, speak curiously and with childlike excitement"
+    },
+    {
+      "id": "child_girl_generic",
+      "name": "Child Girl (Generic)",
+      "region": "Global", "country": null, "gender": "female", "age": "child",
+      "language": "English", "accent": "Neutral",
+      "emotion": "sweet, eager, high-pitched",
+      "instruct": "Little girl with a sweet high-pitched voice, speak eagerly and with cheerful wonder"
+    },
+    {
+      "id": "teen_male_generic",
+      "name": "Teen Male (Generic)",
+      "region": "Global", "country": null, "gender": "male", "age": "teen",
+      "language": "English", "accent": "Neutral",
+      "emotion": "energetic, casual, expressive",
+      "instruct": "Teenage boy with an energetic casual voice, speak expressively and with youthful enthusiasm"
+    },
+    {
+      "id": "teen_female_generic",
+      "name": "Teen Female (Generic)",
+      "region": "Global", "country": null, "gender": "female", "age": "teen",
+      "language": "English", "accent": "Neutral",
+      "emotion": "lively, friendly, bright",
+      "instruct": "Teenage girl with a lively friendly voice, speak brightly and with teenage energy"
+    }
+  ]
+}

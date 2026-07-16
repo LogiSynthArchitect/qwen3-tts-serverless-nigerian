@@ -35,7 +35,7 @@ import numpy as np
 import soundfile as sf
 from pathlib import Path
 
-from inference import get_inference_engine, resolve_voice_params, get_available_voices
+from inference import get_inference_engine, resolve_voice_params, get_available_voices, resolve_preset_instruct, get_preset_voices
 import config
 
 # Configure logging
@@ -246,6 +246,19 @@ def _extract_and_validate_params(job_input: dict) -> tuple:
                 "error": f"Voice '{voice}' not found in voices.json. Available: {available}"
             }
 
+    # Resolve a VoiceDesign preset name -> instruct string (voice_design mode).
+    # If `instruct` is also supplied it is appended after the preset's instruct.
+    if mode == "voice_design" and voice and not ref_audio:
+        preset_instruct = resolve_preset_instruct(voice)
+        if preset_instruct:
+            instruct = f"{preset_instruct}. {instruct}" if instruct else preset_instruct
+            log.info(f"Resolved VoiceDesign preset '{voice}' -> instruct")
+        else:
+            available = list(get_preset_voices().keys())
+            return None, {
+                "error": f"Voice preset '{voice}' not found. Available: {available}"
+            }
+
     # Generation parameters
     max_new_tokens = job_input.get("max_new_tokens")
     do_sample = job_input.get("do_sample")
@@ -264,7 +277,7 @@ def _extract_and_validate_params(job_input: dict) -> tuple:
 
     # Validate mode-specific requirements
     if mode == "voice_design" and not instruct:
-        return None, {"error": "instruct parameter is required for voice_design mode"}
+        return None, {"error": "instruct (or a named 'voice' preset) parameter is required for voice_design mode"}
 
     if mode == "voice_clone" and not ref_audio and not ref_text:
         if not voice:

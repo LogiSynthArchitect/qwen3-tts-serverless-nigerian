@@ -13,6 +13,7 @@ Endpoints:
       {
         "text": "...",
         "mode": "voice_design" | "custom_voice" | "voice_clone",
+        "voice": "<preset id from GET /voices>"  // voice_design only: selects a named preset
         "instruct": "Nigerian male, deep warm voice, speak cheerfully",
         "voice_instruct": "...", "speaker": "...", "language": "Auto",
         "output_format": "mp3" | "pcm_16", "stream": false,
@@ -20,6 +21,10 @@ Endpoints:
       }
     Response: the handler's batch result dict (status, audio_base64/audio_url,
               sample_rate, duration_sec) or {"error": "..."}.
+
+  GET /voices
+    Returns the curated VoiceDesign preset catalog (id, name, region, gender,
+    age, language, accent, emotion). Use an id as the `voice` field in POST /tts.
 
   GET /health  -> {"status": "ok"}
 """
@@ -40,6 +45,7 @@ import sys
 sys.path.insert(0, "/workspace")
 
 import handler as rp_handler  # reuse existing logic
+from inference import get_preset_voices  # VoiceDesign preset catalog
 
 app = FastAPI(title="Qwen3-TTS Vast Serve", version="1.0")
 
@@ -58,6 +64,26 @@ async def log_endpoint():
     except Exception as e:
         tail = f"(no log: {e})"
     return JSONResponse({"log": tail})
+
+
+@app.get("/voices")
+async def voices():
+    """List the curated VoiceDesign preset catalog (African + global, by gender/age)."""
+    presets = get_preset_voices()
+    catalog = [
+        {
+            "id": pid,
+            "name": p.get("name"),
+            "region": p.get("region"),
+            "gender": p.get("gender"),
+            "age": p.get("age"),
+            "language": p.get("language"),
+            "accent": p.get("accent"),
+            "emotion": p.get("emotion"),
+        }
+        for pid, p in presets.items()
+    ]
+    return JSONResponse({"count": len(catalog), "voices": catalog})
 
 
 @app.get("/ps")

@@ -56,6 +56,11 @@ MAX_AUDIO_DURATION = 30.0  # seconds
 # Transcript files are expected to have same base name as audio with .txt extension
 VOICES_CONFIG_PATH = os.environ.get("VOICES_CONFIG_PATH", f"{AUDIO_PROMPTS_DIR}/voices.json")
 
+# VoiceDesign preset library (curated named voices -> instruct strings).
+# Lives in the app repo's bridge/ dir (cloned to /workspace/qwen3-tts/bridge/...).
+APP_DIR = os.environ.get("APP_DIR", "/workspace/qwen3-tts")
+VOICE_PRESETS_PATH = os.environ.get("VOICE_PRESETS_PATH", f"{APP_DIR}/bridge/voices_presets.json")
+
 # Qwen3-TTS CustomVoice supported speakers (built-in, not from audio_prompts)
 CUSTOM_VOICE_SPEAKERS = [
     "Vivian",      # Bright, slightly edgy young female (Chinese)

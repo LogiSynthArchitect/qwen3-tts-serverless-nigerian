@@ -271,6 +271,72 @@ def resolve_voice_params(voice_name: str) -> Optional[Tuple[str, str]]:
     return audio_path, transcript
 
 
+# =============================================================================
+# VOICEDESIGN PRESET LIBRARY
+# Curated named voices (African + global, male/female/child/teen) that resolve
+# to natural-language `instruct` strings. VoiceDesign generates the voice from
+# this text, so African/child voices are achievable here (not in fixed
+# CustomVoice speakers). See bridge/voices_presets.json.
+# =============================================================================
+
+_voice_presets_cache = None
+_voice_presets_mtime = None
+
+
+def load_voice_presets() -> Dict[str, Dict[str, Any]]:
+    """
+    Load the VoiceDesign preset library.
+
+    Returns a dict keyed by preset id -> {name, region, gender, age, language,
+    accent, emotion, instruct}.
+    """
+    global _voice_presets_cache, _voice_presets_mtime
+
+    config_path = Path(config.VOICE_PRESETS_PATH)
+
+    if not config_path.exists():
+        log.warning(f"Voice presets file not found: {config_path}")
+        return {}
+
+    try:
+        mtime = config_path.stat().st_mtime
+        if _voice_presets_cache is not None and _voice_presets_mtime == mtime:
+            return _voice_presets_cache
+    except Exception as e:
+        log.warning(f"Could not check presets mtime: {e}")
+
+    try:
+        import json
+        with open(config_path, "r", encoding="utf-8") as f:
+            data = json.load(f)
+        presets = {p["id"]: p for p in data.get("presets", [])}
+        _voice_presets_cache = presets
+        _voice_presets_mtime = mtime
+        log.info(f"Loaded {len(presets)} VoiceDesign presets from {config_path}")
+        return presets
+    except Exception as e:
+        log.error(f"Failed to load voice presets: {e}")
+        return {}
+
+
+def get_preset_voices() -> Dict[str, Dict[str, Any]]:
+    """Return the full VoiceDesign preset catalog (id -> metadata)."""
+    return load_voice_presets()
+
+
+def resolve_preset_instruct(preset_id: str) -> Optional[str]:
+    """
+    Resolve a preset id to its `instruct` string.
+
+    Returns None if the preset does not exist.
+    """
+    presets = load_voice_presets()
+    preset = presets.get(preset_id)
+    if not preset:
+        return None
+    return preset.get("instruct")
+
+
 class Qwen3TTSInference:
     """
     Qwen3-TTS Inference Engine
