@@ -10,7 +10,7 @@ on:
     branches: [main]
     paths:
       - "Dockerfile"
-      - "vast_start.sh"
+      - "requirements.txt"
       - "serve.py"
       - "handler.py"
       - "inference.py"

@@ -23,7 +23,13 @@ Supports three model types:
 - VoiceDesign: Natural language voice description for custom voice creation
 """
 
-import runpod
+# runpod is only needed for the RunPod serverless entrypoint (see bottom of
+# file). On Vast.ai Serverless (function-based @remote) the package is absent;
+# guard the import so handler.py loads there too.
+try:
+    import runpod
+except ImportError:
+    runpod = None
 import os
 import logging
 import base64

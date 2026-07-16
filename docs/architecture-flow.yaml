@@ -1,0 +1,252 @@
+# =============================================================================
+# Qwen3-TTS Nigerian VoiceDeck — Proposed Architecture Flow
+# =============================================================================
+# This document visualizes the end-to-end flow of the new approach:
+#   GitHub Actions (build) → GHCR (store) → Vast AI template (serve)
+#
+# Cold start drops from 0-7 min (unpredictable) to ~5-60 sec (predictable).
+# =============================================================================
+
+metadata:
+  title: "Qwen3-TTS Deployment Architecture — Custom Docker Image + Template"
+  status: "proposed"
+  date: "2026-07-16"
+  previous_approach: "tarball + onstart_cmd (abandoned)"
+
+# =============================================================================
+# WHY THE OLD APPROACH FAILED
+# =============================================================================
+problems_with_tarball_approach:
+  summary: >
+    The current approach (curl tarball + pip install at boot) has too many
+    independent failure points, each one introducing delay and unpredictability.
+
+  flow: |
+    Vast picks host
+         │
+         ▼
+    Pull vastai/pytorch (5GB)  ← cached on some hosts, not on others
+         │                        → 0 sec if cached, 3-7 min if not
+         ▼
+    Container starts
+         │
+         ▼
+    curl tarball (22KB)        ← depends on GitHub raw availability
+         │                        → ~2 sec normally, may timeout
+         ▼
+    tar extract                 ← ~0.5 sec
+         │
+         ▼
+    pip install -r reqs.txt    ← depends on PyPI + network speed
+         │                        → 1-3 min, may timeout mid-way
+         ▼
+    python serve.py             ← port 8000 finally opens
+         │                        → may fail if pip install corrupted
+         ▼
+    ❌ Ready (unreliable)
+
+  failure_count: 4 independent network-dependent steps
+  cold_start_range: "30 seconds to 7+ minutes (random based on host)"
+  port_issue: >
+    Port mapping is created by Vast when the container starts, but serve.py
+    doesn't begin listening until pip install finishes. The user sees the port
+    but nothing responds — looks like "port not available."
+
+# =============================================================================
+# THE NEW APPROACH — CUSTOM DOCKER IMAGE
+# =============================================================================
+solution:
+  summary: >
+    Bake everything into a Docker image at build time. The image is pushed to
+    GitHub Container Registry (free) and referenced from a Vast AI template.
+    Boot becomes: pull image → run container → serve.py is already listening.
+
+  flow: |
+    ╔══════════════════════════════════════════════════════════════╗
+    ║                BUILD TIME (GitHub Actions)                  ║
+    ╚══════════════════════════════════════════════════════════════╝
+
+    Push code to GitHub (main branch)
+         │
+         ▼
+    GitHub Actions triggers (free, 2000 min/month)
+         │
+         ▼
+    Step 1: Checkout code from repo
+         │
+         ▼
+    Step 2: Build Docker image
+         │   FROM vastai/pytorch:2.6.0-cuda-12.6.3-py312    ← Layer 1 (base)
+         │   COPY . /workspace/qwen3-tts                       ← Layer 2 (code)
+         │   WORKDIR /workspace/qwen3-tts
+         │   RUN pip install -r requirements.txt              ← Layer 3 (deps)
+         │   CMD ["python", "serve.py"]                        ← Entrypoint
+         │
+         ▼
+    Step 3: Tag image
+         │   ghcr.io/logisyntharchitect/qwen3-tts:latest
+         │
+         ▼
+    Step 4: Push to GHCR (free, unlimited pulls)
+         │   ghcr.io/logisyntharchitect/qwen3-tts:latest
+         │
+         ▼
+    ✅ Image ready in registry — world accessible, no auth needed (public)
+
+    ╔══════════════════════════════════════════════════════════════╗
+    ║                BOOT TIME (Vast AI)                          ║
+    ╚══════════════════════════════════════════════════════════════╝
+
+    User creates template (one-time):
+         │   Image: ghcr.io/logisyntharchitect/qwen3-tts:latest
+         │   Port: 8000
+         │   Launch mode: docker ENTRYPOINT
+         │
+         ▼
+    User launches instance via template
+         │
+         ▼
+    Vast assigns host machine (RTX 4090, $0.31/hr)
+         │
+         ▼
+    Docker pull ghcr.io/.../qwen3-tts:latest
+         │   Layer 1: vastai/pytorch (5GB)  ← CACHED on most Vast hosts!
+         │   Layer 2: our code (50KB)       ← Tiny, fast pull
+         │   Layer 3: pip installed deps    ← <300MB, fast pull
+         │   ↓ ↓ ↓
+         │   ⚡ If Layer 1 cached: pull takes ~5-10 seconds
+         │   ⚡ If nothing cached: pull takes ~1-2 minutes
+         │
+         ▼
+    Container starts with ENTRYPOINT
+         │   serve.py immediately listening on port 8000
+         │
+         ▼
+    ✅ Ready (predictable, fast)
+         │   Port 8000 is LIVE — no setup script delaying it
+
+  cold_start_range: "5 seconds to 2 minutes (predictable, depends on host cache)"
+  failure_count: 1 step (Docker pull — single atomic operation)
+
+# =============================================================================
+# WHY DOCKER LAYER CACHING WORKS ON VAST
+# =============================================================================
+layer_caching_explanation:
+  how_it_works: >
+    Docker images are composed of read-only layers. Each layer is identified
+    by a content hash. When a Vast host pulls an image, it checks if each
+    layer already exists on disk. If yes, it skips the download.
+
+  why_vastai_pytorch_is_cached: >
+    Vast AI recommends vastai/pytorch as their primary base image. Thousands
+    of users have pulled it on thousands of hosts. Most hosts in Vast's fleet
+    already have this image cached. When our Docker image uses
+    FROM vastai/pytorch, that layer is hash-identical to what's cached.
+    Result: zero download for the 5GB base.
+
+  what_happens_on_first_boot: |
+    Host A (vastai/pytorch cached):
+      Layer 1:  CHACHED → 0 sec
+      Layer 2:  50KB     → <1 sec
+      Layer 3:  200MB    → ~5-10 sec
+      Total:             → ~10 sec
+
+    Host B (nothing cached):
+      Layer 1:  5GB      → 1-3 min
+      Layer 2:  50KB     → <1 sec
+      Layer 3:  200MB    → ~10 sec
+      Total:             → ~2 min max
+
+  benefit_over_current: |
+    Current: curl + pip at boot = fragile, 4 failure points
+    Proposed: Docker pull = single atomic operation, retry built into Docker
+
+# =============================================================================
+# COMPONENTS
+# =============================================================================
+components:
+  - name: "Dockerfile"
+    location: "/home/cybocrime/runpod/qwen3-tts-serverless-nigerian/Dockerfile"
+    purpose: "Defines the custom Docker image with all dependencies pre-installed"
+    contents:
+      - "FROM vastai/pytorch:2.6.0-cuda-12.6.3-py312"
+      - "COPY . /workspace/qwen3-tts"
+      - "WORKDIR /workspace/qwen3-tts"
+      - "RUN pip install --no-cache-dir -r requirements.txt"
+      - 'CMD ["python", "serve.py"]'
+
+  - name: "GitHub Actions Workflow"
+    location: "/home/cybocrime/runpod/qwen3-tts-serverless-nigerian/.github/workflows/build.yml"
+    purpose: "Automatically builds and pushes Docker image on every push to main"
+    trigger: "push to main branch"
+    runs_on: "ubuntu-latest"
+    steps:
+      - "Checkout code"
+      - "Login to GHCR via GITHUB_TOKEN"
+      - "Build Docker image with tag ghcr.io/logisyntharchitect/qwen3-tts:latest"
+      - "Push to GHCR"
+
+  - name: "Vast AI Template"
+    location: "https://cloud.vast.ai/templates/ (web UI)"
+    purpose: "Reusable configuration to launch instances with our custom image"
+    settings:
+      image: "ghcr.io/logisyntharchitect/qwen3-tts:latest"
+      port: "8000"
+      launch_mode: "docker ENTRYPOINT"
+      disk: "30GB"
+      label: "qwen3-tts"
+
+  - name: "GitHub Container Registry (GHCR)"
+    location: "ghcr.io/logisyntharchitect/qwen3-tts"
+    purpose: "Free Docker image storage (public)"
+    cost: "$0 (free, no pull rate limits for public images)"
+    auth: "GITHUB_TOKEN from GitHub Actions (automatic)"
+
+# =============================================================================
+# COMPARISON TABLE
+# =============================================================================
+comparison:
+  - aspect: "Cold start time"
+    current: "30s – 7min (random)"
+    proposed: "5s – 2min (predictable)"
+
+  - aspect: "Failure points at boot"
+    current: "4 (Docker pull + curl + extract + pip install)"
+    proposed: "1 (Docker pull only)"
+
+  - aspect: "Port reliability"
+    current: "Port 8000 not listening until pip install finishes"
+    proposed: "Port 8000 listening immediately with container"
+
+  - aspect: "Image storage"
+    current: "22KB tarball on GitHub raw"
+    proposed: "Full Docker image on GHCR (free)"
+
+  - aspect: "Dependency install"
+    current: "At boot time (pip install = slow, fragile)"
+    proposed: "At build time (baked into image = never fails at boot)"
+
+  - aspect: "Version management"
+    current: "Tarball overwritten, no versioning"
+    proposed: "Docker tags (latest, v1.0.0, etc.)"
+
+  - aspect: "Works on Runpod?"
+    current: "Yes (tarball approach)"
+    proposed: "Yes (same image, different template)"
+
+  - aspect: "Local Docker needed?"
+    current: "No"
+    proposed: "No (GitHub Actions builds in cloud)"
+
+# =============================================================================
+# NEXT STEPS (ordered)
+# =============================================================================
+next_steps:
+  - "1. User reviews and approves this architecture"
+  - "2. Write Dockerfile in project root"
+  - "3. Create .github/workflows/build.yml for GitHub Actions CI"
+  - "4. Push both files to GitHub — CI triggers automatically"
+  - "5. Verify image appears in GHCR packages"
+  - "6. Create Vast AI template via web UI referencing ghcr.io image"
+  - "7. Launch test instance from template, verify /tts endpoint"
+  - "8. Write stop_pod script to halt billing after session"
