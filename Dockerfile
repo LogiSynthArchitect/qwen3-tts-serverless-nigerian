@@ -5,7 +5,22 @@ ENV DEBIAN_FRONTEND=noninteractive \
     PIP_BREAK_SYSTEM_PACKAGES=1 \
     PYTHONUNBUFFERED=1
 
-# Install system dependencies
+# =============================================================================
+# DEFAULT MODEL & OPTIMIZATION CONFIGURATION
+# =============================================================================
+# Model defaults (overridable via environment at pod/endpoint creation)
+ENV MODEL_TYPE=VoiceDesign \
+    MODEL_PATH="" \
+    RUNPOD_VOLUME=/workspace
+
+# Torch optimization flags (from twolven/Qwen3-TTS-Openai-Fastapi)
+ENV TORCH_COMPILE=0 \
+    ENABLE_TF32=1 \
+    CUDNN_BENCHMARK=1
+
+# =============================================================================
+# SYSTEM DEPENDENCIES
+# =============================================================================
 RUN apt-get update && apt-get install -y --no-install-recommends \
     ffmpeg \
     sox \

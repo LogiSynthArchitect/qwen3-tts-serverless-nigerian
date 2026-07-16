@@ -26,20 +26,21 @@ S3_SECRET_ACCESS_KEY = os.environ.get("S3_SECRET_ACCESS_KEY")
 S3_BUCKET_NAME = os.environ.get("S3_BUCKET_NAME")
 S3_REGION = os.environ.get("S3_REGION", "us-east-1")
 
-# RunPod volume structure
-RUNPOD_VOLUME = "/runpod-volume"
+# RunPod volume structure (default mount: /workspace, overridable via env)
+RUNPOD_VOLUME = os.environ.get("RUNPOD_VOLUME", "/workspace")
 QWEN3TTS_DIR = f"{RUNPOD_VOLUME}/Qwen3-TTS"
 MODEL_CACHE_DIR = f"{QWEN3TTS_DIR}/models"
 OUTPUT_DIR = f"{QWEN3TTS_DIR}/output"
 AUDIO_PROMPTS_DIR = f"{QWEN3TTS_DIR}/audio_prompts"  # For voice cloning reference audio
 
 # Model Configuration
-DEFAULT_MODEL_TYPE = os.environ.get("MODEL_TYPE", "Base")  # Base, CustomVoice, VoiceDesign
-DEFAULT_MODEL_PATH = os.environ.get(
-    "MODEL_PATH",
-    "Qwen/Qwen3-TTS-12Hz-1.7B-Base"  # Will be overridden based on model_type
-)
+DEFAULT_MODEL_TYPE = os.environ.get("MODEL_TYPE", "VoiceDesign")  # Base, CustomVoice, VoiceDesign
 TOKENIZER_MODEL_PATH = os.environ.get("TOKENIZER_PATH", "Qwen/Qwen3-TTS-Tokenizer-12Hz")
+
+# Optimization flags (from twolven/Qwen3-TTS-Openai-Fastapi)
+TORCH_COMPILE = os.environ.get("TORCH_COMPILE", "0") == "1"
+ENABLE_TF32 = os.environ.get("ENABLE_TF32", "1") == "1"
+CUDNN_BENCHMARK = os.environ.get("CUDNN_BENCHMARK", "1") == "1"
 
 # Application Configuration
 MAX_TEXT_LENGTH = int(os.environ.get("MAX_TEXT_LENGTH", "5000"))
@@ -110,13 +111,34 @@ MIN_REPETITION_PENALTY = 1.0
 MAX_REPETITION_PENALTY = 2.0
 
 # Model type to model path mapping
-MODEL_PATHS = {
-    "Base": "Qwen/Qwen3-TTS-12Hz-1.7B-Base",
-    "0.6B-Base": "Qwen/Qwen3-TTS-12Hz-0.6B-Base",
-    "CustomVoice": "Qwen/Qwen3-TTS-12Hz-1.7B-CustomVoice",
-    "0.6B-CustomVoice": "Qwen/Qwen3-TTS-12Hz-0.6B-CustomVoice",
-    "VoiceDesign": "Qwen/Qwen3-TTS-12Hz-1.7B-VoiceDesign",
-}
+# Auto-detects local volume models; falls back to HuggingFace download
+_LOCAL_MODEL_BASE = f"{QWEN3TTS_DIR}/models"
+if os.path.isdir(_LOCAL_MODEL_BASE):
+    _MODEL_DIR = _LOCAL_MODEL_BASE
+    MODEL_PATHS = {
+        "Base": f"{_MODEL_DIR}/Base",
+        "0.6B-Base": f"{_MODEL_DIR}/0.6B-Base",
+        "CustomVoice": f"{_MODEL_DIR}/CustomVoice",
+        "0.6B-CustomVoice": f"{_MODEL_DIR}/0.6B-CustomVoice",
+        "VoiceDesign": f"{_MODEL_DIR}/VoiceDesign",
+    }
+    # Also set tokenizer to local if available
+    _TOKENIZER_DIR = f"{_MODEL_DIR}/Tokenizer"
+    if os.path.isdir(_TOKENIZER_DIR):
+        TOKENIZER_MODEL_PATH = _TOKENIZER_DIR
+else:
+    MODEL_PATHS = {
+        "Base": "Qwen/Qwen3-TTS-12Hz-1.7B-Base",
+        "0.6B-Base": "Qwen/Qwen3-TTS-12Hz-0.6B-Base",
+        "CustomVoice": "Qwen/Qwen3-TTS-12Hz-1.7B-CustomVoice",
+        "0.6B-CustomVoice": "Qwen/Qwen3-TTS-12Hz-0.6B-CustomVoice",
+        "VoiceDesign": "Qwen/Qwen3-TTS-12Hz-1.7B-VoiceDesign",
+    }
+
+# Allow MODEL_PATH env var to override the selected model type's path
+_DEFAULT_MODEL_PATH_OVERRIDE = os.environ.get("MODEL_PATH")
+if _DEFAULT_MODEL_PATH_OVERRIDE:
+    MODEL_PATHS[DEFAULT_MODEL_TYPE] = _DEFAULT_MODEL_PATH_OVERRIDE
 
 # OpenAI voice to Qwen3-TTS speaker mapping (for CustomVoice)
 OPENAI_VOICE_TO_SPEAKER = {

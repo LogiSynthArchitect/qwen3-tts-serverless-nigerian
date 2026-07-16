@@ -1,12 +1,20 @@
-# Qwen3-TTS Serverless
+# Qwen3-TTS Serverless — Nigerian Accent + Emotion Fork
 
 RunPod Serverless deployment for Qwen3-TTS (Alibaba's state-of-the-art text-to-speech system) with Cloudflare Workers bridge for OpenAI TTS API compatibility.
+
+**Fork customizations (vs. upstream `sruckh/Qwen3-TTS-serverless`):**
+- **Default model is now `VoiceDesign`** (was `Base`) — the only model that supports free-form accent + emotion control in a single `instruct` string.
+- **Nigerian English accent support**: `instruct="Nigerian male, deep warm voice, speak cheerfully"` produces a Nigerian-accented voice with the requested emotion in one call.
+- **`voice_instruct` alias**: added as a DashScope-API-compatible alias for `instruct` in both `handler.py` and `inference.py`. When both `instruct` and `voice_instruct` are supplied, they are concatenated.
+- **GPU optimizations**: Flash Attention 2 (auto-detected at load), BFloat16 default dtype, TF32 matmul, cuDNN benchmark mode, and optional `torch.compile` via `TORCH_COMPILE=1`.
+- **Network-volume model auto-detection**: `config.py` checks `/workspace/Qwen3-TTS/models/` for pre-downloaded weights before falling back to HuggingFace download; `MODEL_PATH` env var overrides the selected model type.
 
 ## Features
 
 - **Voice Cloning**: 3-second rapid voice cloning from reference audio with transcript
 - **Custom Voice**: 9 pre-defined premium speakers with instruction control
-- **Voice Design**: Natural language voice description for custom voice creation
+- **Voice Design**: Natural language voice description for custom voice creation — **including accent (e.g. Nigerian) and emotion in one prompt**
+- **Nigerian Accent + Emotion**: combine accent and mood in a single `instruct` string (VoiceDesign mode)
 - **Multi-language Support**: Chinese, English, Japanese, Korean, German, French, Russian, Portuguese, Spanish, Italian
 - **Streaming & Batch Modes**: Low-latency streaming or complete audio generation
 - **OpenAI TTS API Compatible**: Drop-in replacement via Cloudflare Workers bridge
@@ -69,7 +77,9 @@ Located in `audio_prompts/` directory (on network volume):
 |-------|----------|----------------|
 | **Base** | Voice cloning (3s rapid) | `voice` (pre-configured) OR `ref_audio` + `ref_text` |
 | **CustomVoice** | Pre-defined speakers | `speaker` (Vivian, Ryan, etc.) + optional `instruct` |
-| **VoiceDesign** | Natural language control | `instruct` (voice description) |
+| **VoiceDesign** *(default)* | Natural language control — **accent + emotion** | `instruct` (voice description, e.g. `"Nigerian female, warm and cheerful"`) |
+
+> **Default model**: This fork defaults `MODEL_TYPE` to `VoiceDesign` (Dockerfile `ENV` + `config.py` default). Nigerian accent + emotion control is only available in VoiceDesign mode.
 
 ## Voice Configuration
 
@@ -208,6 +218,38 @@ curl -X POST https://api.runpod.ai/v2/YOUR_ENDPOINT_ID/runsync \
   }'
 ```
 
+#### Voice Design — Nigerian Accent + Emotion (this fork's primary use case)
+
+The `instruct` string accepts both **accent** and **emotion** descriptors at once. This is the recommended path for Nigerian-accented TTS:
+
+```bash
+curl -X POST https://api.runpod.ai/v2/YOUR_ENDPOINT_ID/runsync \
+  -H "Authorization: Bearer YOUR_RUNPOD_API_KEY" \
+  -H "Content-Type: application/json" \
+  -d '{
+    "text": "Wetin dey happen today? I dey happy see you!",
+    "mode": "voice_design",
+    "instruct": "Nigerian male, deep warm voice, speak cheerfully with a relaxed pidgin tone",
+    "language": "English",
+    "stream": false
+  }'
+```
+
+You can also use the `voice_instruct` alias (DashScope API compatibility) — supplying both `instruct` and `voice_instruct` concatenates them:
+
+```bash
+curl -X POST https://api.runpod.ai/v2/YOUR_ENDPOINT_ID/runsync \
+  -H "Authorization: Bearer YOUR_RUNPOD_API_KEY" \
+  -H "Content-Type: application/json" \
+  -d '{
+    "text": "Good morning, how far?",
+    "mode": "voice_design",
+    "voice_instruct": "Nigerian female, bright and friendly, slightly laughing",
+    "language": "English",
+    "stream": false
+  }'
+```
+
 #### Voice Cloning (Dynamic Audio + Transcript)
 
 ```bash
@@ -247,7 +289,10 @@ curl -X POST https://api.runpod.ai/v2/YOUR_ENDPOINT_ID/runsync \
 
 | Parameter | Type | Required | Description |
 |-----------|------|----------|-------------|
-| `instruct` | string | Yes | Natural language voice description |
+| `instruct` | string | Yes* | Natural language voice description (accent + emotion) |
+| `voice_instruct` | string | No | Alias for `instruct` (DashScope API compatibility). If both are given, they are concatenated. |
+
+*Required if `voice_instruct` not provided.
 
 #### VoiceClone Mode Parameters
 
@@ -396,7 +441,12 @@ data: {"status": "complete", "total_chunks": 1, "elapsed_time_seconds": 2.3}
 | Variable | Description | Default |
 |----------|-------------|---------|
 | `HF_TOKEN` | HuggingFace token for model access | - |
-| `MODEL_TYPE` | Model type (Base/CustomVoice/VoiceDesign) | Base |
+| `MODEL_TYPE` | Model type (Base/CustomVoice/VoiceDesign) | **VoiceDesign** |
+| `MODEL_PATH` | Override path/URL to model weights (else auto-detected on volume) | - |
+| `RUNPOD_VOLUME` | Mount path of the network volume holding models | `/workspace` |
+| `TORCH_COMPILE` | Enable `torch.compile` for faster inference (slower cold start) | `0` |
+| `ENABLE_TF32` | Enable TF32 matmul | `1` |
+| `CUDNN_BENCHMARK` | Enable cuDNN benchmark mode | `1` |
 | `S3_BUCKET_NAME` | S3 bucket for audio storage | - |
 | `S3_ENDPOINT_URL` | S3 endpoint URL | - |
 | `S3_ACCESS_KEY_ID` | S3 access key | - |

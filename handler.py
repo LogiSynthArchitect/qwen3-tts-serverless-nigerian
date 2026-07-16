@@ -148,7 +148,11 @@ def handler(job):
         "instruct": str (optional) - Voice instruction
 
         // For voice_design mode:
-        "instruct": str (required) - Natural language voice description
+        "instruct": str (required) - Natural language voice description + emotion/style
+                   Example: "Nigerian male, deep warm voice, speak cheerfully"
+        "voice_instruct": str (optional) - Alias for instruct (DashScope API compat).
+                   If BOTH instruct and voice_instruct are provided, they are combined:
+                   voice_instruct describes the voice, instruct describes the emotion.
 
         // For voice_clone mode:
         "voice": str (optional) - Pre-configured voice name (looks up audio + transcript from voices.json)
@@ -224,6 +228,7 @@ def _extract_and_validate_params(job_input: dict) -> tuple:
     # Mode-specific parameters
     speaker = job_input.get("speaker")
     instruct = job_input.get("instruct")
+    voice_instruct = job_input.get("voice_instruct")  # DashScope API alias
     voice = job_input.get("voice")  # For pre-configured voices
     ref_audio = job_input.get("ref_audio")
     ref_text = job_input.get("ref_text")
@@ -274,6 +279,7 @@ def _extract_and_validate_params(job_input: dict) -> tuple:
         "session_id": session_id,
         "speaker": speaker,
         "instruct": instruct,
+        "voice_instruct": voice_instruct,
         "voice": voice,
         "ref_audio": ref_audio,
         "ref_text": ref_text,
@@ -306,6 +312,7 @@ def handler_batch(job):
     language = params["language"]
     speaker = params["speaker"]
     instruct = params["instruct"]
+    voice_instruct = params["voice_instruct"]
 
     try:
         # Get inference engine
@@ -330,6 +337,7 @@ def handler_batch(job):
                 text=text,
                 language=language,
                 instruct=instruct,
+                voice_instruct=voice_instruct,
                 max_new_tokens=params["max_new_tokens"],
                 do_sample=params["do_sample"],
                 temperature=params["temperature"],
@@ -422,6 +430,7 @@ def handler_stream(job_input: dict, output_format: str):
             language=params["language"],
             speaker=params["speaker"],
             instruct=params["instruct"],
+            voice_instruct=params["voice_instruct"],
             ref_audio=params["ref_audio"],
             ref_text=params["ref_text"],
             output_format=output_format,

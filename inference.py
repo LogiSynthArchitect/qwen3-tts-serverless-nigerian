@@ -325,6 +325,16 @@ class Qwen3TTSInference:
 
         log.info(f"Loading Qwen3-TTS model: {self.model_path} on {self.device}...")
 
+        # Apply torch performance optimizations
+        if config.ENABLE_TF32:
+            torch.backends.cuda.matmul.allow_tf32 = True
+            torch.backends.cudnn.allow_tf32 = True
+            log.info("TF32 matmul enabled")
+
+        if config.CUDNN_BENCHMARK:
+            torch.backends.cudnn.benchmark = True
+            log.info("cuDNN benchmark mode enabled")
+
         try:
             from qwen_tts import Qwen3TTSModel
 
@@ -346,7 +356,28 @@ class Qwen3TTSInference:
             )
             self.processor = self.model.processor
 
-            log.info(f"Model loaded successfully (model_type: {self.model_type})")
+            # Optionally compile model for faster inference
+            if config.TORCH_COMPILE:
+                try:
+                    self.model = torch.compile(self.model, mode="reduce-overhead")
+                    log.info("Model compiled with torch.compile (reduce-overhead mode)")
+                except Exception as e:
+                    log.warning(f"torch.compile failed (non-fatal): {e}")
+
+            # Log model parameter count
+            param_count = sum(p.numel() for p in self.model.parameters())
+            log.info(f"Model loaded successfully: {param_count/1e9:.2f}B params (model_type: {self.model_type})")
+
+            # Verify supported languages and speakers after load
+            try:
+                langs = self.model.get_supported_languages()
+                log.info(f"Supported languages: {langs}")
+                if self.model_type == "CustomVoice":
+                    speakers = self.model.get_supported_speakers()
+                    log.info(f"Supported speakers: {speakers}")
+            except Exception:
+                pass
+
             return self.model, self.processor
 
         except Exception as e:
@@ -638,6 +669,7 @@ class Qwen3TTSInference:
         text: str,
         language: str = "Auto",
         instruct: str = None,
+        voice_instruct: str = None,
         max_new_tokens: int = None,
         do_sample: bool = None,
         temperature: float = None,
@@ -648,13 +680,38 @@ class Qwen3TTSInference:
     ) -> Union[Tuple[List[np.ndarray], int], Generator[Tuple[np.ndarray, int], None, None]]:
         """
         Generate audio using VoiceDesign model (natural language voice control).
+
+        Args:
+            text: Text to synthesize
+            language: Language code (default: "Auto" for auto-detection)
+            instruct: Natural language voice description + emotion/style control.
+                      For VoiceDesign, this describes BOTH the voice characteristics
+                      (accent, gender, age, timbre) AND the speaking style/emotion.
+                      Example: "Nigerian male, deep warm voice, speak cheerfully"
+            voice_instruct: Alias for instruct (DashScope API compatibility).
+                            If both instruct and voice_instruct are provided, they
+                            are combined. Use this for DashScope-style API calls
+                            where voice_instruct describes the voice and instruct
+                            describes emotion for this utterance.
+            ...generation parameters
+
+        Returns:
+            (wavs, sample_rate) tuple
         """
         if self.model is None:
             self.load_model()
 
+        # Merge voice_instruct alias with instruct (DashScope API compatibility)
+        if voice_instruct is not None:
+            if instruct is not None:
+                # Both provided: combine for comprehensive voice design
+                instruct = f"{voice_instruct}. {instruct}"
+            else:
+                instruct = voice_instruct
+
         # Validate parameters
         if not instruct:
-            raise ValueError("instruct parameter is required for VoiceDesign model")
+            raise ValueError("instruct (or voice_instruct) parameter is required for VoiceDesign model")
 
         # Split text into chunks
         text_chunks = self._split_text(text)
@@ -895,6 +952,7 @@ class Qwen3TTSInference:
         language: str = "Auto",
         speaker: str = None,
         instruct: str = None,
+        voice_instruct: str = None,
         ref_audio: Union[str, np.ndarray, Tuple[np.ndarray, int]] = None,
         ref_text: str = None,
         voice_clone_prompt = None,
@@ -945,12 +1003,13 @@ class Qwen3TTSInference:
                     streaming_mode=False,  # Generate complete audio first
                 )
             elif mode == "voice_design":
-                if not instruct:
-                    raise ValueError("instruct is required for voice_design mode")
+                if not instruct and not voice_instruct:
+                    raise ValueError("instruct or voice_instruct is required for voice_design mode")
                 wavs, sr = self.generate_voice_design(
                     text=text,
                     language=language,
                     instruct=instruct,
+                    voice_instruct=voice_instruct,
                     max_new_tokens=max_new_tokens,
                     do_sample=do_sample,
                     temperature=temperature,
