@@ -84,8 +84,19 @@ else
 fi
 
 # =============================================================================
-# START HANDLER
+# START SERVER (Vast.ai / generic HTTP mode)
 # =============================================================================
-echo "=== Starting Qwen3-TTS handler (model_type: ${MODEL_TYPE:-VoiceDesign}) ==="
+# On Vast.ai (no RunPod serverless runtime) we serve the model over HTTP via
+# serve.py, which wraps handler.py's logic. On RunPod, the same image still
+# works because runpod.serverless.start is only invoked from handler.py's
+# __main__, which we no longer exec.
+echo "=== Starting Qwen3-TTS HTTP server (model_type: ${MODEL_TYPE:-VoiceDesign}) ==="
 echo "Optimization flags: TORCH_COMPILE=${TORCH_COMPILE:-0}, ENABLE_TF32=${ENABLE_TF32:-1}, CUDNN_BENCHMARK=${CUDNN_BENCHMARK:-1}"
-exec python /workspace/handler.py
+
+# Prefer the venv python created on first run; fall back to system python.
+VENV_PY="${QWEN3TTS_DIR}/venv/bin/python"
+if [ -x "$VENV_PY" ]; then
+    exec "$VENV_PY" /workspace/serve.py
+else
+    exec python /workspace/serve.py
+fi

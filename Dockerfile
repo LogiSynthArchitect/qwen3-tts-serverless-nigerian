@@ -41,6 +41,7 @@ COPY handler.py /workspace/handler.py
 COPY inference.py /workspace/inference.py
 COPY config.py /workspace/config.py
 COPY bootstrap.sh /workspace/bootstrap.sh
+COPY serve.py /workspace/serve.py
 COPY requirements.txt /workspace/requirements.txt
 
 # Make bootstrap executable
