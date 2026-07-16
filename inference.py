@@ -364,9 +364,12 @@ class Qwen3TTSInference:
                 except Exception as e:
                     log.warning(f"torch.compile failed (non-fatal): {e}")
 
-            # Log model parameter count
-            param_count = sum(p.numel() for p in self.model.parameters())
-            log.info(f"Model loaded successfully: {param_count/1e9:.2f}B params (model_type: {self.model_type})")
+            # Log model parameter count (Qwen3TTSModel may not expose .parameters())
+            try:
+                param_count = sum(p.numel() for p in self.model.parameters())
+                log.info(f"Model loaded successfully: {param_count/1e9:.2f}B params (model_type: {self.model_type})")
+            except Exception:
+                log.info(f"Model loaded successfully (model_type: {self.model_type})")
 
             # Verify supported languages and speakers after load
             try:
