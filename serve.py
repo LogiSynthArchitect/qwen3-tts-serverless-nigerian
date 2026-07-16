@@ -49,6 +49,30 @@ async def health():
     return {"status": "ok"}
 
 
+@app.get("/log")
+async def log():
+    """Return the onstart + serve.py log for remote diagnosis (no SSH needed)."""
+    try:
+        with open("/workspace/onstart.log") as f:
+            tail = f.read()[-8000:]
+    except Exception as e:
+        tail = f"(no log: {e})"
+    return JSONResponse({"log": tail})
+
+
+@app.get("/ps")
+async def ps():
+    """Return running python processes for diagnosis."""
+    import subprocess
+    try:
+        out = subprocess.run(
+            ["ps", "-eo", "pid,etimes,cmd"], capture_output=True, text=True, timeout=5
+        ).stdout
+    except Exception as e:
+        out = str(e)
+    return JSONResponse({"ps": out})
+
+
 @app.post("/tts")
 async def tts(request: Request):
     try:
