@@ -50,7 +50,10 @@ EOF
 fi
 
 echo "=== installing qwen-tts (PyPI) into system python ==="
-pip install --break-system-packages --no-cache-dir qwen-tts
+echo "Base image already ships torch/torchaudio/CUDA12.8; install qwen-tts --no-deps"
+echo "and only the bounded pure-Python deps to avoid re-downloading the ~3GB pip CUDA stack."
+pip install --break-system-packages --no-cache-dir --no-deps qwen-tts
+pip install --break-system-packages --no-cache-dir "transformers==4.57.3" "accelerate==1.12.0" onnxruntime librosa soundfile
 $PY -c "import qwen_tts; print('qwen_tts OK', qwen_tts.__file__)" || echo "QWEN_TTS IMPORT FAILED"
 
 echo "=== cloning app code ==="
