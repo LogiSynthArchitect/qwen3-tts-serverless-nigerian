@@ -24,8 +24,10 @@ echo "=== Creating venv ==="
 python3 -m venv "$APP_DIR/venv"
 source "$APP_DIR/venv/bin/activate"
 
-echo "=== Installing app deps (torch already in base; skip reinstall) ==="
-# Install everything except torch/flash-attn/torchaudio (provided by base image).
+echo "=== Installing pinned torch cu128 in venv (base image torch is separate/system) ==="
+pip install --no-cache-dir torch==2.9.1 torchaudio --index-url https://download.pytorch.org/whl/cu128
+
+echo "=== Installing app deps ==="
 pip install --no-cache-dir fastapi uvicorn runpod boto3 librosa soundfile numpy hf_transfer
 pip install --no-cache-dir -e . 2>/dev/null || pip install --no-cache-dir -r requirements.txt || true
 
