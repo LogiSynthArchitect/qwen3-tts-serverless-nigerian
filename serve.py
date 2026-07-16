@@ -50,7 +50,7 @@ async def health():
 
 
 @app.get("/log")
-async def log():
+async def log_endpoint():
     """Return the onstart + serve.py log for remote diagnosis (no SSH needed)."""
     try:
         with open("/workspace/onstart.log") as f:
