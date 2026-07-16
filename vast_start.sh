@@ -26,8 +26,28 @@ $PY --version
 $PY -c "import torch, torchaudio; print('torch', torch.__version__, 'torchaudio', torchaudio.__version__, 'cuda', torch.cuda.is_available())" || echo "TORCH IMPORT FAILED"
 
 # --- start diagnostic server immediately (so /log is always reachable) ---
-nohup $PY /workspace/diag.py >/workspace/diag.log 2>&1 &
+nohup $PY "$APP_DIR/diag.py" >/workspace/diag.log 2>&1 &
 echo "diag pid $!"
+
+# If APP_DIR not yet cloned (defensive), still serve a minimal log at /workspace
+if [ ! -f "$APP_DIR/diag.py" ]; then
+  cat > /workspace/diag_stub.py <<'EOF'
+import json
+from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
+class H(BaseHTTPRequestHandler):
+    def do_GET(self):
+        self.send_response(200); self.send_header("Content-Type","application/json")
+        try:
+            log=open("/workspace/onstart.log").read()[-8000:]
+        except Exception as e:
+            log=f"(no log: {e})"
+        body=json.dumps({"log":log}).encode()
+        self.send_header("Content-Length",str(len(body))); self.end_headers(); self.wfile.write(body)
+    def log_message(self,*a): pass
+ThreadingHTTPServer(("0.0.0.0",8001),H).serve_forever()
+EOF
+  nohup $PY /workspace/diag_stub.py >/workspace/diag_stub.log 2>&1 &
+fi
 
 echo "=== installing qwen-tts (PyPI) into system python ==="
 pip install --break-system-packages --no-cache-dir qwen-tts
