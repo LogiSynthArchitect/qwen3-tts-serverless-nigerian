@@ -6,7 +6,7 @@
 # Auth:    Docker Hub token stored in Google Secret Manager
 # =============================================================================
 steps:
-  # Step 1: Build Docker image with SHA and latest tags
+  # Step 1: Build VoiceDesign image (Dockerfile) with SHA and latest tags
   - name: 'gcr.io/cloud-builders/docker'
     args:
       - 'build'
@@ -16,7 +16,19 @@ steps:
       - 'docker.io/cybocrime/qwen3-tts:latest'
       - '.'
 
-  # Step 2: Login to Docker Hub using secret from Secret Manager
+  # Step 2: Build Base (voice clone) image from Dockerfile.base
+  - name: 'gcr.io/cloud-builders/docker'
+    args:
+      - 'build'
+      - '-f'
+      - 'Dockerfile.base'
+      - '-t'
+      - 'docker.io/cybocrime/qwen3-tts:base-$SHORT_SHA'
+      - '-t'
+      - 'docker.io/cybocrime/qwen3-tts:base'
+      - '.'
+
+  # Step 3: Login to Docker Hub using secret from Secret Manager
   - name: 'gcr.io/cloud-builders/docker'
     entrypoint: 'bash'
     args:
@@ -25,7 +37,7 @@ steps:
         echo "$$DOCKER_HUB_TOKEN" | docker login -u cybocrime --password-stdin
     secretEnv: ['DOCKER_HUB_TOKEN']
 
-  # Step 3: Push both tags to Docker Hub
+  # Step 4: Push all four tags to Docker Hub
   - name: 'gcr.io/cloud-builders/docker'
     args:
       - 'push'
@@ -35,6 +47,16 @@ steps:
     args:
       - 'push'
       - 'docker.io/cybocrime/qwen3-tts:$SHORT_SHA'
+
+  - name: 'gcr.io/cloud-builders/docker'
+    args:
+      - 'push'
+      - 'docker.io/cybocrime/qwen3-tts:base'
+
+  - name: 'gcr.io/cloud-builders/docker'
+    args:
+      - 'push'
+      - 'docker.io/cybocrime/qwen3-tts:base-$SHORT_SHA'
 
 # Pull Docker Hub token from Secret Manager
 availableSecrets:

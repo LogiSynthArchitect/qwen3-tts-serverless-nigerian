@@ -7,7 +7,7 @@
       "ref_text": "VERBATIM transcript of ref_audio (Qwen3-TTS requires this for cloning)",
       "embedding_cache": "Extracted once at container startup by inference.create_voice_clone_prompt(); reused for every /tts call"
     },
-    "source": "Common Voice Nigerian English corpus (CC0/public domain). Single speaker per clip, self-recorded. Transcripts contain natural filler speech — the verbatim text preserves the exact utterance."
+    "source": "Mixed: Common Voice Nigerian English (CC0), LJSpeech (public domain), CMU Arctic (BSD-style)"
   },
   "voices": {
     "brand_narrator_ng_male": {
@@ -20,6 +20,54 @@
       "ref_text": "Umh This person is a famous footballer and umh he plays for Bayern Munich. He's tall, um he has em tattoos. Uh He's very famous. Lewandowski. What? Lewandowski. No. Thomas Muller. No, I think that is in place of PSG. Aah His name starts with Z Hmm? His name is actually like your name. Eh  Plays for PSG. I don't know if it's PSG or Bayern Munich, he's part of this German clubs but I don't know where he moves to. Ah His name is like your name. Umh z You know it. Ziyech. What? No. Is to just mention your name, say your name. Ibrahim. His name is like your name but something like us at the end. And his first name starts with a Z. Ah We have a famous musician in Nigeria that is like his name. Zlatan Ibrahimovic, he plays for AC Milan. Yeah. Where does he play for?",
       "duration_sec": 78.0,
       "source": "Common Voice Nigerian English (CC0)",
+      "status": "real"
+    },
+    "brand_narrator_ng_female": {
+      "name": "Brand Narrator — Nigerian Female",
+      "region": "Nigeria",
+      "country": "NG",
+      "gender": "female",
+      "age": "adult",
+      "ref_audio": "voices_cloned/brand_narrator_ng_female.wav",
+      "ref_text": "Ets Please describe this person. This person is a female. Her skin color is fair. She has brown eyes. She has a small mouth. She has a long face. She is a very beautiful lady. She is always well dressed. She has tiny neck. She is always dressed in well iron clothes. She has a well arranged teeth. She is fair in complexion. She is tall. She is slim. She is a nursing mother. She wears a white dress. She has a blue Toyota car. She is a dark short lady with a round face and flat nose. She is slightly fair in complexion. She has a black hair. She wears a pink dress. She has a well-arranged eyebrow. She is a light skin. She has a pointed nose. She has a very nice smile. She is a shapely lady with a big head and a beautiful face. She is light in complexion. She is a stubborn lady. She is an educated lady. Her dress is white. She is a powerful woman. She is light skin. She wears a black skirt. She wears a pink dress.",
+      "duration_sec": 205.0,
+      "source": "Common Voice Nigerian English (CC0)",
+      "status": "real"
+    },
+    "brand_narrator_ng_child": {
+      "name": "Brand Narrator — Nigerian Child",
+      "region": "Nigeria",
+      "country": "NG",
+      "gender": "female",
+      "age": "child",
+      "ref_audio": "voices_cloned/brand_narrator_ng_child.wav",
+      "ref_text": "Um He has the same face with dad. Um He has big black nose. Um He has tall. He's tall. He's wearing a white shirt. He's not tall because he's a slim boy. He's cute. He's an hospital. He is in hospital. He is wearing white. He is tall. He's only son. He is around twelve years or thirteen. He wears sport wears and he play ball. He is tall and dark and handsome. He wears a spectacles. He's fat. He's okay.",
+      "duration_sec": 40.0,
+      "source": "Common Voice Nigerian English (CC0)",
+      "status": "real"
+    },
+    "brand_narrator_us_female": {
+      "name": "Brand Narrator — US Female",
+      "region": "United States",
+      "country": "US",
+      "gender": "female",
+      "age": "adult",
+      "ref_audio": "voices_cloned/brand_narrator_us_female.wav",
+      "ref_text": "Printing, in the only sense with which we are at present concerned, differs from most if not from all the arts and crafts represented in the Exhibition in being comparatively modern. For although the Chinese took impressions from wood blocks engraved in relief for centuries before the woodcutters of the Netherlands, by a similar process produced the block books, which were the immediate predecessors of the true printed book, the invention of movable metal letters in the middle of the fifteenth century may justly be considered as the invention of the art of printing. But by far the most important event in the whole history of printing, as of learning, was the invention of movable metal type. The printer of to-day, with his high-speed presses, automatic feeders, and swift folding machines, has behind him a wonderful story of growth and development. And in these days, the printers have flourished until they have constructed columns, and then what they call the chase, of iron or steel. The easiest method to attain speed with minute accuracy is by making the designs about the size of a large poster when they are drawn in black and white. There is scarcely anything which has been brought to such a high degree of reproduction.",
+      "duration_sec": 132.1,
+      "source": "LJSpeech (public domain)",
+      "status": "real"
+    },
+    "brand_narrator_us_male": {
+      "name": "Brand Narrator — US Male",
+      "region": "United States",
+      "country": "US",
+      "gender": "male",
+      "age": "adult",
+      "ref_audio": "voices_cloned/brand_narrator_us_male.wav",
+      "ref_text": "Author of the danger trail, Philip Steels, etc. Not at this particular case, Tom, apologized Whittemore. For the twentieth time that evening the two men shook hands. Lord, but I'm glad to see you again, Phil. Will we ever forget it. God bless 'em, I hope I'll go on seeing them forever. And you always want to see it in the superlative degree. Gad, your letter came just in time. He turned sharply, and faced Gregson across the table. I'm playing a single hand in what looks like a losing game. If I ever needed a fighter in my life I need one now. Gregson shoved back his chair and rose to his feet. He was a head shorter than his companion, of almost delicate physique. Now you're coming down to business, Phil, he exclaimed. It's the aurora borealis. There's Fort Churchill, a rifle-shot beyond the ridge, asleep. From that moment his friendship for Belize turns to hatred and jealousy. There was a change now. I followed the line of the proposed railroad, looking for chances. Clubs and balls and cities grew to be only memories. It fairly clubbed me into recognizing it. Hardly were our plans made public before we were met by powerful opposition.",
+      "duration_sec": 79.4,
+      "source": "CMU Arctic bdl (BSD-style license)",
       "status": "real"
     }
   }
