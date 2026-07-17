@@ -51,7 +51,5 @@ options:
   logging: GCS_ONLY
   defaultLogsBucketBehavior: REGIONAL_USER_OWNED_BUCKET
 
-# Tag the image with both latest and commit SHA
-images:
-  - 'docker.io/cybocrime/qwen3-tts:latest'
-  - 'docker.io/cybocrime/qwen3-tts:$SHORT_SHA'
+# (Push is handled by manual steps 3+4 above; images field omitted to avoid
+#  conflict where Cloud Build re-pushes after local tags are gone)
