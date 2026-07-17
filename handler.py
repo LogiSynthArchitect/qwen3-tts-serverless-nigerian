@@ -144,7 +144,7 @@ def handler(job):
     Expected input format:
     {
         "text": str (required) - Text to synthesize
-        "mode": str (optional) - Generation mode: "custom_voice", "voice_design", "voice_clone" (default: "custom_voice")
+        "mode": str (optional) - Generation mode: "voice_design", "custom_voice", "voice_clone" (default: "voice_design")
         "language": str (optional) - Language code (default: "Auto")
         "stream": bool (optional) - Enable streaming mode (default: false)
         "output_format": str (optional) - Output format: "mp3" or "pcm_16" (default: "mp3")
@@ -227,7 +227,7 @@ def _extract_and_validate_params(job_input: dict) -> tuple:
     if not text:
         return None, {"error": "Missing 'text' parameter"}
 
-    mode = job_input.get("mode", "custom_voice")
+    mode = job_input.get("mode", "voice_design")
     language = job_input.get("language", "Auto")
     session_id = job_input.get("session_id", str(uuid.uuid4()))
 
@@ -274,8 +274,8 @@ def _extract_and_validate_params(job_input: dict) -> tuple:
     repetition_penalty = job_input.get("repetition_penalty")
 
     # Validate mode
-    if mode not in ["custom_voice", "voice_design", "voice_clone"]:
-        return None, {"error": f"Invalid mode: {mode}. Must be one of: custom_voice, voice_design, voice_clone"}
+    if mode not in ["voice_design", "custom_voice", "voice_clone"]:
+        return None, {"error": f"Invalid mode: {mode}. Must be one of: voice_design, custom_voice, voice_clone"}
 
     # Validate text length
     if len(text) > config.MAX_TEXT_LENGTH:
