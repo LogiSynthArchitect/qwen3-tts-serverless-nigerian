@@ -46,14 +46,23 @@ EXPOSE 8000
 
 ## 3. Vast.ai Runtype System
 
-| Runtype | Entrypoint behavior | SSH/Jupyter | Use when |
-|---------|---------------------|-------------|----------|
-| `args` | **Preserves** image ENTRYPOINT. `args_str` replaces CMD. | None | Headless server (our case) |
-| `ssh_direct` | Replaced by Vast entrypoint | Port 22 | Need terminal |
-| `jupyter_direct` | Replaced by Vast entrypoint | 8080 + 22 | Need notebooks |
+| Runtype | Entrypoint behavior | SSH/Jupyter | Port 8000 exposed? |
+|---------|---------------------|-------------|-------------------|
+| `args` | **Preserves** image ENTRYPOINT. `args_str` replaces CMD. | None | ❌ Leaves `ports: None` — does NOT map 8000 |
+| `ssh_direct` | Replaced by Vast entrypoint | Port 22 | ✅ Maps 8000 → random external port |
+| `jupyter_direct` | Replaced by Vast entrypoint | 8080 + 22 | ✅ (if EXPOSE/`-p` set) |
 
-**We use `args`** because we want the container to run `serve.py` exactly as built.
-No `--ssh`/`--jupyter` flag → defaults to `args` mode.
+**We use `ssh_direct`** — it reliably exposes port 8000 to the internet.
+`args` runtype was tried repeatedly but always left `ports: None` (no external mapping),
+even though the container was "running". The server was unreachable.
+
+With `ssh_direct`, Vast overrides the ENTRYPOINT, so we MUST use `onstart` to launch serve.py:
+```
+vastai create instance <OFFER_ID> --image cybocrime/qwen3-tts:latest \
+  --ssh --direct --env '-p 8000:8000' --disk 40 \
+  --onstart-cmd "cd /workspace/qwen3-tts && python3 serve.py"
+```
+The `onstart-cmd` runs after Vast's SSH entrypoint initializes.
 
 ---
 
@@ -119,14 +128,17 @@ for o in offers[:5]:
 "
 ```
 
-### Step 4: Create instance
+### Step 4: Create instance (ssh_direct — proven working)
 ```bash
 source /tmp/vastcli/bin/activate
 vastai create instance <OFFER_ID> \
   --image cybocrime/qwen3-tts:latest \
+  --ssh --direct \
   --env '-p 8000:8000' \
-  --disk 40
-# No --ssh/--jupyter → defaults to args runtype → runs CMD python3 serve.py
+  --disk 40 \
+  --onstart-cmd "cd /workspace/qwen3-tts && python3 serve.py"
+# ssh_direct exposes port 8000 → random external port (visible in `ports` field)
+# onstart-cmd launches serve.py after Vast's SSH entrypoint initializes
 ```
 
 ### Step 5: Wait for running (poll status)
@@ -165,7 +177,7 @@ curl -s http://<PUBLIC_IP>:<EXTERNAL_PORT>/health
 | `exec: "python": not found` | Base image has `python3` only | `CMD ["python3", "serve.py"]` |
 | `ping_group_range` sysctl fail | Host kernel incompat | Destroy, pick different host |
 | `loading` > 5 min, no progress | Slow/stalled docker pull | Destroy, pick host with `inet_down` > 2000 |
-| `ports: None` after running | Port not requested | Add `--env '-p 8000:8000'` at create |
+| `ports: None` after running (args mode) | `args` runtype doesn't map ports | Use `ssh_direct` + `--env '-p 8000:8000'` + `--onstart-cmd` |
 | Zombie instances appearing | CLI auto-retries failed creates | Destroy all, verify no template auto-deploys |
 
 ---
