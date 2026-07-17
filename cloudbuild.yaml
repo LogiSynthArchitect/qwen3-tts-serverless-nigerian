@@ -1,0 +1,51 @@
+# =============================================================================
+# Google Cloud Build config — Qwen3-TTS Docker image
+#
+# Trigger: push to main branch (set up via Cloud Build web UI)
+# Builds:  docker build → push to Docker Hub (free)
+# Auth:    Docker Hub token stored in Google Secret Manager
+# =============================================================================
+steps:
+  # Step 1: Build Docker image with SHA and latest tags
+  - name: 'gcr.io/cloud-builders/docker'
+    args:
+      - 'build'
+      - '-t'
+      - 'docker.io/cybocrime/qwen3-tts:$SHORT_SHA'
+      - '-t'
+      - 'docker.io/cybocrime/qwen3-tts:latest'
+      - '.'
+
+  # Step 2: Login to Docker Hub using secret from Secret Manager
+  - name: 'gcr.io/cloud-builders/docker'
+    entrypoint: 'bash'
+    args:
+      - '-c'
+      - |
+        echo "$$DOCKER_HUB_TOKEN" | docker login -u cybocrime --password-stdin
+    secretEnv: ['DOCKER_HUB_TOKEN']
+
+  # Step 3: Push both tags to Docker Hub
+  - name: 'gcr.io/cloud-builders/docker'
+    args:
+      - 'push'
+      - 'docker.io/cybocrime/qwen3-tts:latest'
+
+  - name: 'gcr.io/cloud-builders/docker'
+    args:
+      - 'push'
+      - 'docker.io/cybocrime/qwen3-tts:$SHORT_SHA'
+
+# Pull Docker Hub token from Secret Manager
+availableSecrets:
+  secretManager:
+    - versionName: projects/$PROJECT_ID/secrets/DOCKER_HUB_TOKEN/versions/latest
+      env: DOCKER_HUB_TOKEN
+
+# 30 min timeout (base image pull is ~10-15 min)
+timeout: '1800s'
+
+# Tag the image with both latest and commit SHA
+images:
+  - 'docker.io/cybocrime/qwen3-tts:latest'
+  - 'docker.io/cybocrime/qwen3-tts:$SHORT_SHA'

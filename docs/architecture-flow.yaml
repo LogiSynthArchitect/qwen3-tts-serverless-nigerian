@@ -1,17 +1,26 @@
 # =============================================================================
-# Qwen3-TTS Nigerian VoiceDeck — Proposed Architecture Flow
+# Qwen3-TTS Nigerian VoiceDeck — Architecture Flow (v4)
 # =============================================================================
-# This document visualizes the end-to-end flow of the new approach:
-#   GitHub Actions (build) → GHCR (store) → Vast AI template (serve)
+# v1: GitHub Actions + GHCR — blocked by GitHub billing hold
+# v2: Local Docker build on Runpod VM — blocked by insufficient disk space
+# v3: Docker Hub Automated Builds — deprecated + requires paid plan
+# v4: Google Cloud Build — builds on GCP infrastructure, 120 free min/day
+#
+# Final flow: Push code to GitHub → Cloud Build triggers → builds →
+#             pushes to Docker Hub → Vast pulls image from Docker Hub
 #
 # Cold start drops from 0-7 min (unpredictable) to ~5-60 sec (predictable).
 # =============================================================================
 
 metadata:
-  title: "Qwen3-TTS Deployment Architecture — Custom Docker Image + Template"
-  status: "proposed"
+  title: "Qwen3-TTS Deployment Architecture — Custom Docker Image + Template (v4)"
+  status: "active"
   date: "2026-07-16"
-  previous_approach: "tarball + onstart_cmd (abandoned)"
+  previous_approaches:
+    - "v1: tarball + onstart_cmd (abandoned — 4 failure points at boot)"
+    - "v2: GitHub Actions + GHCR (blocked — GitHub billing hold)"
+    - "v3: Local build on Runpod VM (blocked — disk space insufficient)"
+    - "v3b: Docker Hub Automated Builds (blocked — deprecated, requires paid plan)"
 
 # =============================================================================
 # WHY THE OLD APPROACH FAILED
@@ -53,52 +62,55 @@ problems_with_tarball_approach:
     but nothing responds — looks like "port not available."
 
 # =============================================================================
-# THE NEW APPROACH — CUSTOM DOCKER IMAGE
+# THE NEW APPROACH — GOOGLE CLOUD BUILD
 # =============================================================================
 solution:
   summary: >
-    Bake everything into a Docker image at build time. The image is pushed to
-    GitHub Container Registry (free) and referenced from a Vast AI template.
+    Bake everything into a Docker image at build time. Google Cloud Build's
+    free tier (120 min/day, no cost) watches the GitHub repo. On every push
+    to main, Cloud Build checks out the code, builds the Dockerfile on GCP
+    infrastructure, and pushes the resulting image to Docker Hub.
+    No local Docker needed. No GitHub Actions needed. No disk space needed.
     Boot becomes: pull image → run container → serve.py is already listening.
 
   flow: |
     ╔══════════════════════════════════════════════════════════════╗
-    ║                BUILD TIME (GitHub Actions)                  ║
+    ║            BUILD TIME (Google Cloud Build, free tier)       ║
     ╚══════════════════════════════════════════════════════════════╝
 
-    Push code to GitHub (main branch)
+    User pushes code to GitHub (main branch)
          │
          ▼
-    GitHub Actions triggers (free, 2000 min/month)
+    Cloud Build trigger detects push
+         │   (one-time setup: GitHub → GCP trigger)
          │
          ▼
-    Step 1: Checkout code from repo
+    Cloud Build provisions e2-standard-2 runner (2 vCPU, 8 GB)
          │
          ▼
-    Step 2: Build Docker image
-         │   FROM vastai/pytorch:2.6.0-cuda-12.6.3-py312    ← Layer 1 (base)
-         │   COPY . /workspace/qwen3-tts                       ← Layer 2 (code)
-         │   WORKDIR /workspace/qwen3-tts
-         │   RUN pip install -r requirements.txt              ← Layer 3 (deps)
-         │   CMD ["python", "serve.py"]                        ← Entrypoint
+    1. docker build
+         │   FROM vastai/pytorch:cuda-12.6.3-auto   ← ~10 min pull (8.9GB)
+         │   COPY . /workspace/qwen3-tts
+         │   RUN pip install -r requirements.txt
+         │   CMD ["python", "serve.py"]
          │
          ▼
-    Step 3: Tag image
-         │   ghcr.io/logisyntharchitect/qwen3-tts:latest
+    2. docker login (via Secret Manager token)
          │
          ▼
-    Step 4: Push to GHCR (free, unlimited pulls)
-         │   ghcr.io/logisyntharchitect/qwen3-tts:latest
+    3. docker push docker.io/cybocrime/qwen3-tts:latest
          │
          ▼
-    ✅ Image ready in registry — world accessible, no auth needed (public)
+    ✅ Image ready on Docker Hub — world accessible, free pulls
+         │   Total build time: ~12-15 min
+         │   Free tier: 120 min/day = ~8 builds/day
 
     ╔══════════════════════════════════════════════════════════════╗
     ║                BOOT TIME (Vast AI)                          ║
     ╚══════════════════════════════════════════════════════════════╝
 
-    User creates template (one-time):
-         │   Image: ghcr.io/logisyntharchitect/qwen3-tts:latest
+    User creates Vast template (one-time):
+         │   Image: docker.io/cybocrime/qwen3-tts:latest
          │   Port: 8000
          │   Launch mode: docker ENTRYPOINT
          │
@@ -109,7 +121,7 @@ solution:
     Vast assigns host machine (RTX 4090, $0.31/hr)
          │
          ▼
-    Docker pull ghcr.io/.../qwen3-tts:latest
+    Docker pull docker.io/cybocrime/qwen3-tts:latest
          │   Layer 1: vastai/pytorch (5GB)  ← CACHED on most Vast hosts!
          │   Layer 2: our code (50KB)       ← Tiny, fast pull
          │   Layer 3: pip installed deps    ← <300MB, fast pull
@@ -146,7 +158,7 @@ layer_caching_explanation:
 
   what_happens_on_first_boot: |
     Host A (vastai/pytorch cached):
-      Layer 1:  CHACHED → 0 sec
+      Layer 1:  CACHED → 0 sec
       Layer 2:  50KB     → <1 sec
       Layer 3:  200MB    → ~5-10 sec
       Total:             → ~10 sec
@@ -165,42 +177,38 @@ layer_caching_explanation:
 # COMPONENTS
 # =============================================================================
 components:
+  - name: "Google Cloud Build"
+    location: "console.cloud.google.com/cloud-build"
+    purpose: "Builds Docker image on every push to GitHub main branch"
+    free_tier: "120 build-minutes/day (e2-standard-2 runner)"
+    setup_done: false
+
+  - name: "cloudbuild.yaml"
+    location: "/home/cybocrime/runpod/qwen3-tts-serverless-nigerian/cloudbuild.yaml"
+    purpose: "Cloud Build config — builds Docker image and pushes to Docker Hub"
+
   - name: "Dockerfile"
     location: "/home/cybocrime/runpod/qwen3-tts-serverless-nigerian/Dockerfile"
     purpose: "Defines the custom Docker image with all dependencies pre-installed"
-    contents:
-      - "FROM vastai/pytorch:2.6.0-cuda-12.6.3-py312"
-      - "COPY . /workspace/qwen3-tts"
-      - "WORKDIR /workspace/qwen3-tts"
-      - "RUN pip install --no-cache-dir -r requirements.txt"
-      - 'CMD ["python", "serve.py"]'
 
-  - name: "GitHub Actions Workflow"
-    location: "/home/cybocrime/runpod/qwen3-tts-serverless-nigerian/.github/workflows/build.yml"
-    purpose: "Automatically builds and pushes Docker image on every push to main"
-    trigger: "push to main branch"
-    runs_on: "ubuntu-latest"
-    steps:
-      - "Checkout code"
-      - "Login to GHCR via GITHUB_TOKEN"
-      - "Build Docker image with tag ghcr.io/logisyntharchitect/qwen3-tts:latest"
-      - "Push to GHCR"
+  - name: "GitHub Repository"
+    location: "github.com/LogiSynthArchitect/qwen3-tts-serverless-nigerian"
+    purpose: "Source of truth — push code here, Cloud Build picks it up"
+
+  - name: "Docker Hub Registry"
+    location: "hub.docker.com/r/cybocrime/qwen3-tts"
+    purpose: "Final image storage — free, unlimited public pulls"
+    image: "docker.io/cybocrime/qwen3-tts:latest"
 
   - name: "Vast AI Template"
     location: "https://cloud.vast.ai/templates/ (web UI)"
     purpose: "Reusable configuration to launch instances with our custom image"
     settings:
-      image: "ghcr.io/logisyntharchitect/qwen3-tts:latest"
+      image: "docker.io/cybocrime/qwen3-tts:latest"
       port: "8000"
       launch_mode: "docker ENTRYPOINT"
       disk: "30GB"
       label: "qwen3-tts"
-
-  - name: "GitHub Container Registry (GHCR)"
-    location: "ghcr.io/logisyntharchitect/qwen3-tts"
-    purpose: "Free Docker image storage (public)"
-    cost: "$0 (free, no pull rate limits for public images)"
-    auth: "GITHUB_TOKEN from GitHub Actions (automatic)"
 
 # =============================================================================
 # COMPARISON TABLE
@@ -220,7 +228,7 @@ comparison:
 
   - aspect: "Image storage"
     current: "22KB tarball on GitHub raw"
-    proposed: "Full Docker image on GHCR (free)"
+    proposed: "Full Docker image on Docker Hub (free)"
 
   - aspect: "Dependency install"
     current: "At boot time (pip install = slow, fragile)"
@@ -232,21 +240,70 @@ comparison:
 
   - aspect: "Works on Runpod?"
     current: "Yes (tarball approach)"
-    proposed: "Yes (same image, different template)"
+    proposed: "Yes (same image, different Vast template)"
 
-  - aspect: "Local Docker needed?"
-    current: "No"
-    proposed: "No (GitHub Actions builds in cloud)"
+  - aspect: "Build location"
+    current: "At boot on Vast host"
+    proposed: "Google Cloud Build (free, 120 min/day)"
 
 # =============================================================================
-# NEXT STEPS (ordered)
+# TODO — NEXT STEPS (ordered)
 # =============================================================================
-next_steps:
-  - "1. User reviews and approves this architecture"
-  - "2. Write Dockerfile in project root"
-  - "3. Create .github/workflows/build.yml for GitHub Actions CI"
-  - "4. Push both files to GitHub — CI triggers automatically"
-  - "5. Verify image appears in GHCR packages"
-  - "6. Create Vast AI template via web UI referencing ghcr.io image"
-  - "7. Launch test instance from template, verify /tts endpoint"
-  - "8. Write stop_pod script to halt billing after session"
+todo:
+  - step: 1
+    title: "Create GCP project + enable Cloud Build API"
+    who: "User — web browser"
+    action: |
+      console.cloud.google.com → New Project "qwen3-tts-builder" →
+      Enable Cloud Build API at console.cloud.google.com/apis/library/cloudbuild.googleapis.com
+    done: false
+
+  - step: 2
+    title: "Create Docker Hub token in Secret Manager"
+    who: "User — web browser"
+    action: |
+      console.cloud.google.com/security/secret-manager →
+      Create Secret → Name: DOCKER_HUB_TOKEN → Value: (your Docker Hub access token)
+    done: false
+
+  - step: 3
+    title: "Connect GitHub repo + create Cloud Build trigger"
+    who: "User — web browser"
+    action: |
+      console.cloud.google.com/cloud-build/triggers →
+      Connect Repository → GitHub → select repo →
+      Create Trigger → Push to main → /cloudbuild.yaml
+    done: false
+
+  - step: 4
+    title: "Verify first build succeeds"
+    who: "Both — user watches GCP, agent verifies on Docker Hub"
+    action: |
+      Push to GitHub triggers build → watch progress in GCP console →
+      Verify image at hub.docker.com/r/cybocrime/qwen3-tts/tags
+    done: false
+
+  - step: 5
+    title: "Create Vast AI template"
+    who: "User — web browser"
+    action: |
+      cloud.vast.ai → Templates → Create Template →
+      Image: docker.io/cybocrime/qwen3-tts:latest →
+      Port: 8000 → Launch mode: docker ENTRYPOINT → Disk: 30GB
+    done: false
+
+  - step: 6
+    title: "Launch test pod from template"
+    who: "Agent — via vastai CLI"
+    action: >
+      Rent a Vast instance from the template, wait for running state,
+      verify POST /tts and GET /voices endpoints respond correctly
+    done: false
+
+  - step: 7
+    title: "Write stop_pod script"
+    who: "Agent — write script"
+    action: >
+      Create scripts/stop-pod.sh that calls vastai stop-instance
+      to halt billing after a session
+    done: false

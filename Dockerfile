@@ -2,9 +2,9 @@
 # Qwen3-TTS VoiceDesign — Custom Docker Image
 #
 # Base: vastai/pytorch (cached on most Vast hosts → fast cold start)
-# Build: GitHub Actions (free CI, triggered on push to main)
-# Push: GHCR (free, unlimited pulls)
-# Run: Vast AI template referencing ghcr.io/.../qwen3-tts:latest
+# Build: Google Cloud Build (free, 120 min/day, triggered on push to main)
+# Push: Docker Hub (free, unlimited public pulls)
+# Run: Vast AI template referencing docker.io/cybocrime/qwen3-tts:latest
 #
 # Cold start: 5-60 sec (layer cache hit) vs 0-7 min (old tarball approach)
 # Failure points: 1 (Docker pull) vs 4 (old: pull + curl + extract + pip)
