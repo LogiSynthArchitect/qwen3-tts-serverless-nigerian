@@ -10,6 +10,8 @@
 # Failure points: 1 (Docker pull) vs 4 (old: pull + curl + extract + pip)
 # ---------------------------------------------------------------------------
 FROM vastai/pytorch:cuda-12.6.3-auto
+# Clear base image ENTRYPOINT so our CMD runs directly (not passed as args)
+ENTRYPOINT []
 
 ENV DEBIAN_FRONTEND=noninteractive \
     PYTHONUNBUFFERED=1 \
