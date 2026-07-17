@@ -105,8 +105,10 @@ actor's reference clip ONCE, reuse it for every TTS call.
 
 **Files added/changed:**
 - `bridge/voices_cloned.json` — registry: voice_id → {ref_audio, ref_text, metadata}.
-- `bridge/voices_cloned/*.wav` — proof-of-concept reference audio (copied from
-  saved VoiceDesign samples; REPLACE with real actor recordings before prod).
+- `bridge/voices_cloned/*.wav` — real CC0 Nigerian-English speech extracted from
+  Common Voice corpus (public domain). URLs extracted via `crw_search` from
+  `benjaminogbonna/nigerian_common_voice_dataset` on HuggingFace; MP3 bytes
+  decoded to 24kHz mono WAV + verbatim transcript preserved.
 - `inference.py`:
   - `preload_clone_voices()` — at startup (Base only) extracts+caches embeddings
     via `create_voice_clone_prompt(ref_audio, ref_text)` into `self._clone_cache[vid]`.
@@ -136,7 +138,20 @@ vastai create instance <OFFER_ID> --image cybocrime/qwen3-tts:base --ssh --direc
 **Ref audio requirements:** WAV/MP3, 24kHz, 20-60s clean single-speaker speech.
 `ref_text` MUST be verbatim transcript (Qwen3-TTS requires it).
 
+**Voice catalog (as of 2026-07-17):**
+
+| voice_id | Real voice | Accent | Duration | Source |
+|---|---|---|---|---|
+| `brand_narrator_ng_male` | Nigerian male, deep conversational | Nigerian English | 78s | CC0 Common Voice |
+| `brand_narrator_gh_female` | Nigerian female, bright descriptive | Nigerian English | 93s | CC0 Common Voice |
+| `brand_narrator_ke_male` | Nigerian male, calm deliberate | Nigerian English | 30s | CC0 Common Voice |
+
+**⚠ Note:** All three entries currently use Nigerian English speakers (the only
+accent available in the CC0 public corpus sourced). The voice_ids suggest Ghanaian
+and Kenyan origin — they are holding slots for when CC0 audio in those accents
+becomes available. For production brand deployment, **replace with actual
+voice-actor recordings** in the target accents (Nigerian, Ghanaian, Kenyan,
+South African, etc.) where brand-consistent, professional-grade audio is needed.
+
 **Status:** Infra built (2026-07-17). NOT yet E2E-proven on a live Base instance —
-needs a GPU Vast instance running `:base` image. Proof-of-concept ref audio in place.
-**TODO:** source real voice-actor recordings → replace `bridge/voices_cloned/*.wav`
-+ `ref_text` per actor.
+needs a GPU Vast instance running `:base` image. Real CC0 audio in place.

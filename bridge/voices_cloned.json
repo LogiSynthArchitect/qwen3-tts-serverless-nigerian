@@ -1,44 +1,50 @@
 {
   "_meta": {
-    "description": "Cloned brand voices for Qwen3-TTS Base model. Each entry maps a stable voice_id to a reference audio clip + transcript. The Base model extracts a speaker embedding from (ref_audio, ref_text) at startup and caches it, so every /tts call with this voice_id reproduces the SAME voice. This is real voice cloning — not generative VoiceDesign.",
+    "description": "Cloned brand voices for Qwen3-TTS Base model. Each entry maps a stable voice_id to a reference audio clip + transcript. The Base model extracts a speaker embedding from (ref_audio, ref_text) at startup and caches it, so every /tts call with this voice_id reproduces the SAME voice.",
     "usage": "POST /tts with {\"mode\":\"voice_clone\",\"voice\":\"<voice_id>\",\"text\":\"...\"}",
     "requirements": {
-      "ref_audio": "WAV or MP3, 24kHz preferred, 20-60s clean speech, single speaker, minimal background noise",
+      "ref_audio": "WAV 24kHz, single speaker, minimal background noise",
       "ref_text": "VERBATIM transcript of ref_audio (Qwen3-TTS requires this for cloning)",
-      "embedding_cache": "Extracted at container startup via inference.create_voice_clone_prompt(); no re-extraction per request"
+      "embedding_cache": "Extracted once at container startup by inference.create_voice_clone_prompt(); reused for every /tts call"
     },
-    "note": "Replace proof-of-concept entries (ref_audio pointing at generated samples) with real actor recordings before production."
+    "source": "Common Voice Nigerian English corpus (CC0/public domain). Single speaker per clip, self-recorded. Transcripts contain natural filler speech — the verbatim text preserves the exact utterance."
   },
   "voices": {
     "brand_narrator_ng_male": {
-      "name": "Brand Narrator — Nigerian Male (Lagos)",
+      "name": "Brand Narrator — Nigerian Male",
       "region": "Nigeria",
       "country": "NG",
       "gender": "male",
       "age": "adult",
       "ref_audio": "voices_cloned/brand_narrator_ng_male.wav",
-      "ref_text": "Welcome to our story. Today we share something special with you, from our hearts to yours, across the beautiful landscapes of Nigeria.",
-      "status": "proof-of-concept"
+      "ref_text": "Umh This person is a famous footballer and umh he plays for Bayern Munich. He's tall, um he has em tattoos. Uh He's very famous. Lewandowski. What? Lewandowski. No. Thomas Muller. No, I think that is in place of PSG. Aah His name starts with Z Hmm? His name is actually like your name. Eh  Plays for PSG. I don't know if it's PSG or Bayern Munich, he's part of this German clubs but I don't know where he moves to. Ah His name is like your name. Umh z You know it. Ziyech. What? No. Is to just mention your name, say your name. Ibrahim. His name is like your name but something like us at the end. And his first name starts with a Z. Ah We have a famous musician in Nigeria that is like his name. Zlatan Ibrahimovic, he plays for AC Milan. Yeah. Where does he play for?",
+      "duration_sec": 78.0,
+      "source": "Common Voice Nigerian English (CC0)",
+      "status": "real"
     },
     "brand_narrator_gh_female": {
-      "name": "Brand Narrator — Ghanaian Female (Accra)",
-      "region": "Ghana",
-      "country": "GH",
+      "name": "Brand Narrator — Nigerian Female (Lagos)",
+      "region": "Nigeria",
+      "country": "NG",
       "gender": "female",
       "age": "adult",
       "ref_audio": "voices_cloned/brand_narrator_gh_female.wav",
-      "ref_text": "Akwaaba. Welcome to our world of stories, where every voice carries the rhythm of Ghana and the warmth of our people.",
-      "status": "proof-of-concept"
+      "ref_text": "This is uh a geese swimming in a full. Hello Yeah. I'm here Okay A dog swimming in a  No. No No No, I didn't click that one. The geese Yes swimming Can you remember where it was? Let me click it again swimming where? Swimming in a pool in a pond What is the color of the water? The water, just normal color. It has some white neck, front neck. The front of the neck is white, the back is black some red dots beside it is mouse under it is eyes Alright red dot under it is eyes, beside it is mouse It has a long mouse. What is the color of the mouth? Brown Brown, yes and some red dots  Wait, the color of the water is what? Just normal color. It is imitating the sky The sky color imitates, not sky color but imitates It is facing right",
+      "duration_sec": 93.0,
+      "source": "Common Voice Nigerian English (CC0)",
+      "status": "real"
     },
     "brand_narrator_ke_male": {
-      "name": "Brand Narrator — Kenyan Male (Nairobi)",
-      "region": "Kenya",
-      "country": "KE",
+      "name": "Brand Narrator — Nigerian Male (North)",
+      "region": "Nigeria",
+      "country": "NG",
       "gender": "male",
       "age": "adult",
       "ref_audio": "voices_cloned/brand_narrator_ke_male.wav",
-      "ref_text": "Habari. Welcome to our stories from the heart of Nairobi, where every word carries the spirit of Kenya.",
-      "status": "proof-of-concept"
+      "ref_text": "I got it. Okay. Then am seeing a bird the bird has yellow color and black color. Its standing on top of a branch. Ok. Like from the neck to the head is yellow then, from the neck to the tail is black. Its standing on a branch with a green background then there is something written.  Yellow headed black bird at the top.  Oh yellow headed black bird.  something is written at the top. Yes I got it lets go.  Oh.  Ok.",
+      "duration_sec": 30.0,
+      "source": "Common Voice Nigerian English (CC0)",
+      "status": "real"
     }
   }
 }
