@@ -45,7 +45,7 @@ import sys
 sys.path.insert(0, "/workspace")
 
 import handler as rp_handler  # reuse existing logic
-from inference import get_preset_voices  # VoiceDesign preset catalog
+from inference import get_preset_voices, get_cloned_voices  # VoiceDesign + cloned catalogs
 
 app = FastAPI(title="Qwen3-TTS Vast Serve", version="1.0")
 
@@ -97,6 +97,25 @@ async def ps():
     except Exception as e:
         out = str(e)
     return JSONResponse({"ps": out})
+
+
+@app.get("/clone-voices")
+async def clone_voices():
+    """List registered cloned brand voices (Base model only).
+    Use an id as the `voice` field in POST /tts with mode=voice_clone."""
+    voices = get_cloned_voices()
+    catalog = [
+        {
+            "id": vid,
+            "name": v.get("name"),
+            "region": v.get("region"),
+            "country": v.get("country"),
+            "gender": v.get("gender"),
+            "status": v.get("status", "registered"),
+        }
+        for vid, v in voices.items()
+    ]
+    return JSONResponse({"count": len(catalog), "voices": catalog})
 
 
 @app.post("/tts")

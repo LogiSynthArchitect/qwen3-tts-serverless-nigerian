@@ -1,7 +1,8 @@
 # Qwen3-TTS Vast.ai Deployment — Mesh Sheet
 
-> Durable deployment record for Qwen3-TTS (Nigerian VoiceDesign, 24-voice catalog)
-> on Vast.ai via custom Docker image. Last verified: 2026-07-17.
+> Durable deployment record for Qwen3-TTS (Nigerian VoiceDesign, 20-voice catalog)
+> on Vast.ai via custom Docker image. Cloning infra added 2026-07-17.
+> Last verified: 2026-07-17.
 
 ## 1. Architecture (v4 — single failure point)
 ```
@@ -54,7 +55,7 @@ vastai create instance <OFFER_ID> \
 ```bash
 # Health
 curl http://<IP>:<PORT>/health
-# Voice list (24 voices)
+# Voice list (20 VoiceDesign presets)
 curl http://<IP>:<PORT>/voices
 # TTS (voice_design mode)
 curl -X POST http://<IP>:<PORT>/tts \
@@ -95,3 +96,47 @@ VoiceDesign model. Use `mode:"voice_design"` + `voice:"<preset_id>"` (from `/voi
 - VPS memtree DB (localhost:5433) unreachable from this VM — Hetzner SSH tunnel
   returns `Permission denied (publickey)`. Knowledge preserved here + in repo
   (`VAST_DEPLOYMENT_GUIDE.md`, `DEPLOYMENT_LESSONS.md`) instead.
+
+## 12. Cloning (v5 — real voice cloning, Base model)
+**Why:** VoiceDesign presets (the 20 voices above) are text-described and drift
+between generations — NOT brand-consistent. For real, reproducible brand voices we
+use the **1.7B-Base** model's voice-cloning: extract a speaker embedding from a real
+actor's reference clip ONCE, reuse it for every TTS call.
+
+**Files added/changed:**
+- `bridge/voices_cloned.json` — registry: voice_id → {ref_audio, ref_text, metadata}.
+- `bridge/voices_cloned/*.wav` — proof-of-concept reference audio (copied from
+  saved VoiceDesign samples; REPLACE with real actor recordings before prod).
+- `inference.py`:
+  - `preload_clone_voices()` — at startup (Base only) extracts+caches embeddings
+    via `create_voice_clone_prompt(ref_audio, ref_text)` into `self._clone_cache[vid]`.
+  - `get_clone_prompt(vid)`, `resolve_cloned_voice(vid)`, `get_cloned_voices()`.
+  - `get_inference_engine()` calls `preload_clone_voices()` after engine creation.
+- `handler.py`: voice_clone mode resolves cloned voice_id first (from registry),
+  then falls back to CustomVoice `voices.json`. Uses cached `voice_clone_prompt`
+  when available (no per-request re-extraction).
+- `serve.py`: new `GET /clone-voices` endpoint (mirrors `/voices`).
+- `Dockerfile.base` — Base model variant (`MODEL_TYPE=Base`, pulls 1.7B-Base).
+
+**API (cloning):**
+```bash
+# List cloned brand voices
+curl http://<IP>:<PORT>/clone-voices
+# TTS using a cloned voice (embedding reused from cache)
+curl -X POST http://<IP>:<PORT>/tts \
+  -H "Content-Type: application/json" \
+  -d '{"text":"...","mode":"voice_clone","voice":"brand_narrator_ng_male","language":"Auto"}'
+```
+**Deploy (cloning):**
+```bash
+docker build -f Dockerfile.base -t cybocrime/qwen3-tts:base . && docker push cybocrime/qwen3-tts:base
+vastai create instance <OFFER_ID> --image cybocrime/qwen3-tts:base --ssh --direct \
+  --env '-p 8000:8000' --disk 40 --onstart-cmd "cd /workspace/qwen3-tts && python3 serve.py"
+```
+**Ref audio requirements:** WAV/MP3, 24kHz, 20-60s clean single-speaker speech.
+`ref_text` MUST be verbatim transcript (Qwen3-TTS requires it).
+
+**Status:** Infra built (2026-07-17). NOT yet E2E-proven on a live Base instance —
+needs a GPU Vast instance running `:base` image. Proof-of-concept ref audio in place.
+**TODO:** source real voice-actor recordings → replace `bridge/voices_cloned/*.wav`
++ `ref_text` per actor.

@@ -1,0 +1,60 @@
+# ---------------------------------------------------------------------------
+# Qwen3-TTS Base (Voice Cloning) — Docker Image Variant
+#
+# Differs from Dockerfile only in MODEL_TYPE=Base, which pulls the
+# 1.7B-Base checkpoint (voice cloning via ref_audio + ref_text).
+#
+# The Base model extracts a speaker embedding from each registered brand voice
+# at startup (see inference.preload_clone_voices) using bridge/voices_cloned.json.
+# Reference audio files must be present at:
+#   ${APP_DIR}/voices_cloned/<file>.wav   (baked into image OR mounted volume)
+#
+# Build/push:
+#   docker build -f Dockerfile.base -t cybocrime/qwen3-tts:base .
+#   docker push cybocrime/qwen3-tts:base
+# Vast template uses: docker.io/cybocrime/qwen3-tts:base
+# ---------------------------------------------------------------------------
+FROM vastai/pytorch:cuda-12.6.3-auto
+# Clear base image ENTRYPOINT so our CMD runs directly (not passed as args)
+ENTRYPOINT []
+
+ENV DEBIAN_FRONTEND=noninteractive \
+    PYTHONUNBUFFERED=1 \
+    APP_DIR=/workspace/qwen3-tts \
+    MODEL_TYPE=Base \
+    PORT=8000
+
+# System dependencies (libsox/ffmpeg for torchaudio backend)
+RUN apt-get update -qq && apt-get install -y -qq ffmpeg libsox-dev sox \
+    && rm -rf /var/lib/apt/lists/*
+
+# Copy the entire application code (replaces old tarball fetch at boot).
+# voices_cloned.json is copied here; place ref_audio WAVs alongside it
+# (bridge/voices_cloned/*.wav) OR mount a volume at ${APP_DIR}/voices_cloned.
+COPY . "$APP_DIR"
+WORKDIR "$APP_DIR"
+
+# Install Python dependencies
+# qwen-tts 0.1.1 requires: transformers==4.57.3, accelerate==1.12.0, torchaudio
+# Pin torch from CUDA 12.4 channel for host driver compatibility
+RUN pip install --no-cache-dir \
+        torch==2.6.0+cu124 \
+        torchaudio==2.6.0+cu124 \
+        --index-url https://download.pytorch.org/whl/cu124 \
+    && pip install --no-cache-dir -r requirements.txt \
+    && pip install --no-cache-dir --no-deps qwen-tts \
+    && pip install --no-cache-dir \
+        "transformers==4.57.3" "accelerate==1.12.0" \
+        "einops" onnxruntime sox
+
+# Validate critical imports
+RUN python3 -c "import torch; print('torch', torch.__version__, 'CUDA available:', torch.cuda.is_available())" \
+    && python3 -c "import torchaudio; print('torchaudio', torchaudio.__version__)" \
+    && python3 -c "import qwen_tts; print('qwen-tts OK:', qwen_tts.__file__)"
+
+# Expose TTS API port
+EXPOSE 8000
+
+# Serve (no git pull, no pip install at boot — everything is baked in)
+# Base image vastai/pytorch provides python3 (no bare "python" symlink)
+CMD ["python3", "serve.py"]

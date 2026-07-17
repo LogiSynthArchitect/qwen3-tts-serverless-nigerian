@@ -61,6 +61,10 @@ VOICES_CONFIG_PATH = os.environ.get("VOICES_CONFIG_PATH", f"{AUDIO_PROMPTS_DIR}/
 APP_DIR = os.environ.get("APP_DIR", "/workspace/qwen3-tts")
 VOICE_PRESETS_PATH = os.environ.get("VOICE_PRESETS_PATH", f"{APP_DIR}/bridge/voices_presets.json")
 
+# Cloned brand voices registry (voice_id -> ref_audio + ref_text).
+# Used by the Base model for real voice cloning (consistent, reproducible voices).
+VOICE_CLONED_PATH = os.environ.get("VOICE_CLONED_PATH", f"{APP_DIR}/bridge/voices_cloned.json")
+
 # Qwen3-TTS CustomVoice supported speakers (built-in, not from audio_prompts)
 CUSTOM_VOICE_SPEAKERS = [
     "Vivian",      # Bright, slightly edgy young female (Chinese)

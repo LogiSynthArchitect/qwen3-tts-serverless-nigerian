@@ -1,0 +1,44 @@
+{
+  "_meta": {
+    "description": "Cloned brand voices for Qwen3-TTS Base model. Each entry maps a stable voice_id to a reference audio clip + transcript. The Base model extracts a speaker embedding from (ref_audio, ref_text) at startup and caches it, so every /tts call with this voice_id reproduces the SAME voice. This is real voice cloning — not generative VoiceDesign.",
+    "usage": "POST /tts with {\"mode\":\"voice_clone\",\"voice\":\"<voice_id>\",\"text\":\"...\"}",
+    "requirements": {
+      "ref_audio": "WAV or MP3, 24kHz preferred, 20-60s clean speech, single speaker, minimal background noise",
+      "ref_text": "VERBATIM transcript of ref_audio (Qwen3-TTS requires this for cloning)",
+      "embedding_cache": "Extracted at container startup via inference.create_voice_clone_prompt(); no re-extraction per request"
+    },
+    "note": "Replace proof-of-concept entries (ref_audio pointing at generated samples) with real actor recordings before production."
+  },
+  "voices": {
+    "brand_narrator_ng_male": {
+      "name": "Brand Narrator — Nigerian Male (Lagos)",
+      "region": "Nigeria",
+      "country": "NG",
+      "gender": "male",
+      "age": "adult",
+      "ref_audio": "voices_cloned/brand_narrator_ng_male.wav",
+      "ref_text": "Welcome to our story. Today we share something special with you, from our hearts to yours, across the beautiful landscapes of Nigeria.",
+      "status": "proof-of-concept"
+    },
+    "brand_narrator_gh_female": {
+      "name": "Brand Narrator — Ghanaian Female (Accra)",
+      "region": "Ghana",
+      "country": "GH",
+      "gender": "female",
+      "age": "adult",
+      "ref_audio": "voices_cloned/brand_narrator_gh_female.wav",
+      "ref_text": "Akwaaba. Welcome to our world of stories, where every voice carries the rhythm of Ghana and the warmth of our people.",
+      "status": "proof-of-concept"
+    },
+    "brand_narrator_ke_male": {
+      "name": "Brand Narrator — Kenyan Male (Nairobi)",
+      "region": "Kenya",
+      "country": "KE",
+      "gender": "male",
+      "age": "adult",
+      "ref_audio": "voices_cloned/brand_narrator_ke_male.wav",
+      "ref_text": "Habari. Welcome to our stories from the heart of Nairobi, where every word carries the spirit of Kenya.",
+      "status": "proof-of-concept"
+    }
+  }
+}

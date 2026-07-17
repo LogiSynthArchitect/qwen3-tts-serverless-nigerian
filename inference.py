@@ -271,6 +271,46 @@ def resolve_voice_params(voice_name: str) -> Optional[Tuple[str, str]]:
     return audio_path, transcript
 
 
+def get_cloned_voices() -> Dict[str, Dict[str, Any]]:
+    """Load the cloned brand-voice registry (voice_id -> metadata)."""
+    global _cloned_voices_cache, _cloned_voices_mtime
+    config_path = Path(config.VOICE_CLONED_PATH)
+    if not config_path.exists():
+        return {}
+    try:
+        mtime = config_path.stat().st_mtime
+        if _cloned_voices_cache is not None and _cloned_voices_mtime == mtime:
+            return _cloned_voices_cache
+        with open(config_path, "r", encoding="utf-8") as f:
+            data = json.load(f)
+        voices = data.get("voices", {})
+        _cloned_voices_cache = voices
+        _cloned_voices_mtime = mtime
+        return voices
+    except Exception as e:
+        log.error(f"Failed to load cloned voices: {e}")
+        return {}
+
+
+def resolve_cloned_voice(voice_id: str) -> Optional[Tuple[str, str]]:
+    """
+    Resolve a cloned voice_id to (ref_audio_path, ref_text).
+
+    Returns None if not found. ref_audio is resolved relative to APP_DIR.
+    """
+    voices = get_cloned_voices()
+    meta = voices.get(voice_id)
+    if not meta:
+        return None
+    ref_audio = meta.get("ref_audio")
+    ref_text = meta.get("ref_text")
+    if not ref_audio or not ref_text:
+        return None
+    if not Path(ref_audio).is_absolute():
+        ref_audio = str(Path(config.APP_DIR) / ref_audio)
+    return ref_audio, ref_text
+
+
 # =============================================================================
 # VOICEDESIGN PRESET LIBRARY
 # Curated named voices (African + global, male/female/child/teen) that resolve
@@ -281,6 +321,9 @@ def resolve_voice_params(voice_name: str) -> Optional[Tuple[str, str]]:
 
 _voice_presets_cache = None
 _voice_presets_mtime = None
+
+_cloned_voices_cache = None
+_cloned_voices_mtime = None
 
 
 def load_voice_presets() -> Dict[str, Dict[str, Any]]:
@@ -383,6 +426,74 @@ class Qwen3TTSInference:
             )
 
         log.info(f"Qwen3TTSInference initialized: model_type={self.model_type}, model_path={self.model_path}")
+
+        # Voice-clone embedding cache (voice_id -> VoiceClonePromptItem)
+        # Populated at startup by preload_clone_voices() when model_type == "Base".
+        self._clone_cache: Dict[str, Any] = {}
+
+    def preload_clone_voices(self, registry_path: str = None):
+        """
+        Extract and cache voice-clone embeddings for all registered brand voices.
+
+        Reads bridge/voices_cloned.json, loads each ref_audio + ref_text, calls
+        model.create_voice_clone_prompt() to extract the speaker embedding, and
+        stores the result in self._clone_cache keyed by voice_id. This runs ONCE
+        at container startup (Base model only) so every /tts call reuses the same
+        embedding — producing a consistent, reproducible cloned voice.
+
+        Safe no-op if model_type != "Base" or registry missing.
+        """
+        if self.model_type != "Base":
+            log.info("preload_clone_voices: skipped (model_type != Base)")
+            return
+
+        if self.model is None:
+            self.load_model()
+
+        registry_path = registry_path or config.VOICE_CLONED_PATH
+        if not Path(registry_path).exists():
+            log.warning(f"preload_clone_voices: registry not found: {registry_path}")
+            return
+
+        try:
+            with open(registry_path, "r", encoding="utf-8") as f:
+                reg = json.load(f)
+        except Exception as e:
+            log.error(f"preload_clone_voices: failed to read registry: {e}")
+            return
+
+        voices = reg.get("voices", {})
+        if not voices:
+            log.info("preload_clone_voices: no voices in registry")
+            return
+
+        log.info(f"preload_clone_voices: extracting embeddings for {len(voices)} voice(s)...")
+        for vid, meta in voices.items():
+            try:
+                ref_audio = meta.get("ref_audio")
+                ref_text = meta.get("ref_text")
+                if not ref_audio or not ref_text:
+                    log.warning(f"  [{vid}] skipped: missing ref_audio or ref_text")
+                    continue
+                # Resolve relative path against APP_DIR
+                if not Path(ref_audio).is_absolute():
+                    ref_audio = str(Path(config.APP_DIR) / ref_audio)
+                if not Path(ref_audio).exists():
+                    log.warning(f"  [{vid}] skipped: ref_audio not found: {ref_audio}")
+                    continue
+                prompt = self.create_voice_clone_prompt(
+                    ref_audio=ref_audio, ref_text=ref_text
+                )
+                self._clone_cache[vid] = prompt
+                log.info(f"  [{vid}] OK — embedding cached ({meta.get('name','')})")
+            except Exception as e:
+                log.error(f"  [{vid}] FAILED: {e}")
+
+        log.info(f"preload_clone_voices: {len(self._clone_cache)}/{len(voices)} cached")
+
+    def get_clone_prompt(self, voice_id: str):
+        """Return cached VoiceClonePromptItem for a registered voice_id, or None."""
+        return self._clone_cache.get(voice_id)
 
     def load_model(self):
         """Load Qwen3-TTS model and processor"""
@@ -1173,5 +1284,11 @@ def get_inference_engine(
             model_path=model_path,
             device=device,
         )
+        # Extract + cache cloned voice embeddings at startup (Base model only).
+        # This makes every /tts clone call reuse the same speaker embedding.
+        try:
+            _inference_engine.preload_clone_voices()
+        except Exception as e:
+            log.error(f"get_inference_engine: preload_clone_voices failed (non-fatal): {e}")
 
     return _inference_engine

@@ -41,7 +41,7 @@ import numpy as np
 import soundfile as sf
 from pathlib import Path
 
-from inference import get_inference_engine, resolve_voice_params, get_available_voices, resolve_preset_instruct, get_preset_voices
+from inference import get_inference_engine, resolve_voice_params, get_available_voices, resolve_preset_instruct, get_preset_voices, resolve_cloned_voice, get_cloned_voices
 import config
 
 # Configure logging
@@ -240,17 +240,24 @@ def _extract_and_validate_params(job_input: dict) -> tuple:
     ref_text = job_input.get("ref_text")
     x_vector_only_mode = job_input.get("x_vector_only_mode", False)
 
-    # Resolve voice name to audio path and transcript for voice_clone mode
+    # Resolve voice name to audio path and transcript for voice_clone mode.
+    # Check cloned brand-voice registry FIRST, then fall back to CustomVoice voices.json.
     if mode == "voice_clone" and voice and not ref_audio:
-        resolved = resolve_voice_params(voice)
+        resolved = resolve_cloned_voice(voice)
         if resolved:
             ref_audio, ref_text = resolved
-            log.info(f"Resolved voice '{voice}' to audio: {ref_audio}, transcript: {len(ref_text)} chars")
+            log.info(f"Resolved cloned voice '{voice}' to audio: {ref_audio}, transcript: {len(ref_text)} chars")
         else:
-            available = list(get_available_voices().keys())
-            return None, {
-                "error": f"Voice '{voice}' not found in voices.json. Available: {available}"
-            }
+            resolved = resolve_voice_params(voice)
+            if resolved:
+                ref_audio, ref_text = resolved
+                log.info(f"Resolved voice '{voice}' to audio: {ref_audio}, transcript: {len(ref_text)} chars")
+            else:
+                cloned = list(get_cloned_voices().keys())
+                custom = list(get_available_voices().keys())
+                return None, {
+                    "error": f"Voice '{voice}' not found. Cloned voices: {cloned}. CustomVoice voices: {custom}"
+                }
 
     # Resolve a VoiceDesign preset name -> instruct string (voice_design mode).
     # If `instruct` is also supplied it is appended after the preset's instruct.
@@ -365,19 +372,37 @@ def handler_batch(job):
                 repetition_penalty=params["repetition_penalty"],
             )
         elif mode == "voice_clone":
-            wavs, sr = inference_engine.generate_voice_clone(
-                text=text,
-                ref_audio=params["ref_audio"],
-                ref_text=params["ref_text"],
-                language=language,
-                x_vector_only_mode=params["x_vector_only_mode"],
-                max_new_tokens=params["max_new_tokens"],
-                do_sample=params["do_sample"],
-                temperature=params["temperature"],
-                top_p=params["top_p"],
-                top_k=params["top_k"],
-                repetition_penalty=params["repetition_penalty"],
-            )
+            # Prefer a pre-cached cloned voice embedding (set at startup for
+            # registered brand voices). Falls back to ref_audio+ref_text.
+            clone_prompt = inference_engine.get_clone_prompt(voice) if voice else None
+            if clone_prompt is not None:
+                log.info(f"voice_clone: using cached embedding for '{voice}'")
+                wavs, sr = inference_engine.generate_voice_clone(
+                    text=text,
+                    voice_clone_prompt=clone_prompt,
+                    language=language,
+                    x_vector_only_mode=params["x_vector_only_mode"],
+                    max_new_tokens=params["max_new_tokens"],
+                    do_sample=params["do_sample"],
+                    temperature=params["temperature"],
+                    top_p=params["top_p"],
+                    top_k=params["top_k"],
+                    repetition_penalty=params["repetition_penalty"],
+                )
+            else:
+                wavs, sr = inference_engine.generate_voice_clone(
+                    text=text,
+                    ref_audio=params["ref_audio"],
+                    ref_text=params["ref_text"],
+                    language=language,
+                    x_vector_only_mode=params["x_vector_only_mode"],
+                    max_new_tokens=params["max_new_tokens"],
+                    do_sample=params["do_sample"],
+                    temperature=params["temperature"],
+                    top_p=params["top_p"],
+                    top_k=params["top_k"],
+                    repetition_penalty=params["repetition_penalty"],
+                )
         else:
             return {"error": f"Unknown mode: {mode}"}
 
