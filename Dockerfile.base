@@ -14,8 +14,11 @@
 #   docker push cybocrime/qwen3-tts:base
 # Vast template uses: docker.io/cybocrime/qwen3-tts:base
 # ---------------------------------------------------------------------------
-FROM vastai/pytorch:cuda-12.6.3-auto
-# Clear base image ENTRYPOINT so our CMD runs directly (not passed as args)
+# Use official NVIDIA CUDA runtime (vastai/pytorch writes net.ipv4.ping_group_range
+# during container init which fails on some Vast host kernels — avoiding that).
+# nvidia/cuda is minimal: we install torch manually in RUN below (CUDA libs
+# provided by nvidia/cuda runtime, torch CUDA wheels provide the rest).
+FROM nvidia/cuda:12.6.3-runtime-ubuntu22.04
 ENTRYPOINT []
 
 ENV DEBIAN_FRONTEND=noninteractive \
@@ -24,9 +27,18 @@ ENV DEBIAN_FRONTEND=noninteractive \
     MODEL_TYPE=Base \
     PORT=8000
 
-# System dependencies (libsox/ffmpeg for torchaudio backend)
-RUN apt-get update -qq && apt-get install -y -qq ffmpeg libsox-dev sox \
-    && rm -rf /var/lib/apt/lists/*
+# System dependencies: build-essential for pip compile (sox), python3 for app,
+# ffmpeg/libsox for torchaudio backend
+RUN apt-get update -qq && apt-get install -y -qq \
+        build-essential \
+        python3 \
+        python3-pip \
+        python3-venv \
+        ffmpeg \
+        libsox-dev \
+        sox \
+    && rm -rf /var/lib/apt/lists/* \
+    && ln -sf /usr/bin/python3 /usr/bin/python
 
 # Copy the entire application code (replaces old tarball fetch at boot).
 # voices_cloned.json is copied here; place ref_audio WAVs alongside it
