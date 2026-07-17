@@ -45,6 +45,11 @@ availableSecrets:
 # 30 min timeout (base image pull is ~10-15 min)
 timeout: '1800s'
 
+# Use Cloud Logging instead of a GCS logs bucket
+# (required when using a custom service account)
+options:
+  logging: CLOUD_LOGGING_ONLY
+
 # Tag the image with both latest and commit SHA
 images:
   - 'docker.io/cybocrime/qwen3-tts:latest'
