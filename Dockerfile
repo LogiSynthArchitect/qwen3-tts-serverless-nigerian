@@ -26,12 +26,13 @@ COPY . "$APP_DIR"
 WORKDIR "$APP_DIR"
 
 # Install Python dependencies
-# torch/torchaudio come pre-installed in vastai/pytorch base image
-# CSRF-protected form: no --no-deps required; pip resolves correctly
+# qwen-tts 0.1.1 requires pinned versions of transformers/accelerate
+# torchaudio + einops are runtime deps (not --no-deps from qwen-tts)
 RUN pip install --no-cache-dir -r requirements.txt \
     && pip install --no-cache-dir --no-deps qwen-tts \
     && pip install --no-cache-dir \
-        "transformers>=4.57.0" "accelerate>=1.12.0" onnxruntime
+        "transformers==4.57.3" "accelerate==1.12.0" \
+        "torchaudio" "einops" onnxruntime
 
 # Validate critical imports
 RUN python3 -c "import torch; print('torch', torch.__version__, 'CUDA available:', torch.cuda.is_available())" \
