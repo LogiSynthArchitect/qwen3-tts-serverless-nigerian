@@ -28,11 +28,13 @@ WORKDIR "$APP_DIR"
 # Install Python dependencies
 # qwen-tts 0.1.1 requires pinned versions of transformers/accelerate
 # torchaudio + einops are runtime deps (not --no-deps from qwen-tts)
+# torchaudio installed with --no-deps to avoid torch version conflicts
+# (base image already has torch with CUDA 12.6)
 RUN pip install --no-cache-dir -r requirements.txt \
-    && pip install --no-cache-dir --no-deps qwen-tts \
+    && pip install --no-cache-dir --no-deps qwen-tts torchaudio \
     && pip install --no-cache-dir \
         "transformers==4.57.3" "accelerate==1.12.0" \
-        "torchaudio" "einops" onnxruntime
+        "einops" onnxruntime
 
 # Validate critical imports
 RUN python3 -c "import torch; print('torch', torch.__version__, 'CUDA available:', torch.cuda.is_available())" \

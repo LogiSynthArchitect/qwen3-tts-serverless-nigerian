@@ -45,10 +45,11 @@ availableSecrets:
 # 30 min timeout (base image pull is ~10-15 min)
 timeout: '1800s'
 
-# Use Cloud Logging instead of a GCS logs bucket
-# (required when using a custom service account)
+# Use GCS-only logging (required when using a custom service account)
+# defaultLogsBucketBehavior auto-creates a user-owned bucket we can read
 options:
-  logging: CLOUD_LOGGING_ONLY
+  logging: GCS_ONLY
+  defaultLogsBucketBehavior: REGIONAL_USER_OWNED_BUCKET
 
 # Tag the image with both latest and commit SHA
 images:
