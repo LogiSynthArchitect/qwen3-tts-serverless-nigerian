@@ -276,6 +276,7 @@ def get_cloned_voices() -> Dict[str, Dict[str, Any]]:
     global _cloned_voices_cache, _cloned_voices_mtime
     config_path = Path(config.VOICE_CLONED_PATH)
     if not config_path.exists():
+        log.warning(f"get_cloned_voices: file not found at {config_path}")
         return {}
     try:
         mtime = config_path.stat().st_mtime

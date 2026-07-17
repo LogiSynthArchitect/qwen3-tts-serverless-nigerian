@@ -45,6 +45,7 @@ log = logging.getLogger("vast-serve")
 import sys
 sys.path.insert(0, "/workspace")
 
+import config  # path/registry config
 import handler as rp_handler  # reuse existing logic
 from inference import get_preset_voices, get_cloned_voices  # VoiceDesign + cloned catalogs
 
@@ -70,11 +71,16 @@ async def log_endpoint():
 @app.get("/diag")
 async def diag():
     """Diagnostic: check file paths, env, and registries (no model load)."""
+    import sys
+
     info = {
         "cwd": os.getcwd(),
         "app_dir": config.APP_DIR,
         "voice_cloned_path": config.VOICE_CLONED_PATH,
         "voice_presets_path": config.VOICE_PRESETS_PATH,
+        "config.__file__": config.__file__,
+        "handler.__file__": rp_handler.__file__,
+        "sys.path": sys.path,
     }
     for key in ("voice_cloned_path", "voice_presets_path"):
         p = Path(info[key])
@@ -82,17 +88,26 @@ async def diag():
         info[f"{key}_parent_exists"] = p.parent.exists()
         if p.parent.exists():
             info[f"{key}_parent_ls"] = [str(x.name) for x in p.parent.iterdir()]
+    # Check the actual bridge/ contents
+    for guess in ["bridge", "../bridge", f"{config.APP_DIR}/bridge", "/workspace/qwen3-tts/bridge"]:
+        p = Path(guess).resolve()
+        info[f"bridge_at_{guess}"] = str(p)
+        info[f"bridge_at_{guess}_exists"] = p.exists()
+        info[f"bridge_at_{guess}_isdir"] = p.is_dir()
+        if p.is_dir():
+            try:
+                info[f"bridge_at_{guess}_ls"] = [str(x.name) for x in p.iterdir()]
+            except Exception as e:
+                info[f"bridge_at_{guess}_ls_err"] = str(e)
     # cloned voices from file (does NOT load the model)
     cloned = get_cloned_voices()
     info["cloned_voice_count"] = len(cloned)
     info["cloned_voice_ids"] = list(cloned.keys())
     # Env vars (non-sensitive keys only)
-    safe_keys = ["MODEL_TYPE", "APP_DIR", "PORT", "RUNPOD_VOLUME", "HOME", "PATH[:100]"]
+    safe_keys = ["MODEL_TYPE", "APP_DIR", "PORT", "RUNPOD_VOLUME", "HOME"]
     for k in safe_keys:
-        if k == "PATH[:100]":
-            info["PATH"] = os.environ.get("PATH", "")[:100]
-        else:
-            info[k] = os.environ.get(k, "(not set)")
+        info[k] = os.environ.get(k, "(not set)")
+    info["PATH_truncated"] = os.environ.get("PATH", "")[:100]
     return info
 
 
