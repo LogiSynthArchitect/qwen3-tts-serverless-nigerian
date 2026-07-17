@@ -34,7 +34,7 @@ RUN pip install --no-cache-dir -r requirements.txt \
     && pip install --no-cache-dir --no-deps qwen-tts torchaudio \
     && pip install --no-cache-dir \
         "transformers==4.57.3" "accelerate==1.12.0" \
-        "einops" onnxruntime
+        "einops" onnxruntime sox
 
 # Validate critical imports
 RUN python3 -c "import torch; print('torch', torch.__version__, 'CUDA available:', torch.cuda.is_available())" \
