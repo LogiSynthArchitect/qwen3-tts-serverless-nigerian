@@ -28,12 +28,15 @@ COPY . "$APP_DIR"
 WORKDIR "$APP_DIR"
 
 # Install Python dependencies
-# qwen-tts 0.1.1 requires pinned versions of transformers/accelerate
-# torchaudio + einops are runtime deps (not --no-deps from qwen-tts)
-# torchaudio installed with --no-deps to avoid torch version conflicts
-# (base image already has torch with CUDA 12.6)
-RUN pip install --no-cache-dir -r requirements.txt \
-    && pip install --no-cache-dir --no-deps qwen-tts torchaudio \
+# qwen-tts 0.1.1 requires: transformers==4.57.3, accelerate==1.12.0, torchaudio
+# Pin torch from CUDA 12.4 channel for host driver compatibility
+# (vastai hosts run driver 565.77 / CUDA 12.7 — cu124 builds are compatible)
+RUN pip install --no-cache-dir \
+        torch==2.6.0+cu124 \
+        torchaudio==2.6.0+cu124 \
+        --index-url https://download.pytorch.org/whl/cu124 \
+    && pip install --no-cache-dir -r requirements.txt \
+    && pip install --no-cache-dir --no-deps qwen-tts \
     && pip install --no-cache-dir \
         "transformers==4.57.3" "accelerate==1.12.0" \
         "einops" onnxruntime sox
