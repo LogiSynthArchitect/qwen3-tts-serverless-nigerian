@@ -6,15 +6,30 @@
 # Auth:    Docker Hub token stored in Google Secret Manager
 # =============================================================================
 steps:
+  # Step 0: Compute SHA tag (works with both trigger and manual builds)
+  - name: 'bash'
+    entrypoint: 'bash'
+    args:
+      - '-c'
+      - |
+        if [ -n "$SHORT_SHA" ]; then
+          echo "$SHORT_SHA" > /workspace/tag
+        else
+          git rev-parse --short HEAD > /workspace/tag
+        fi
+        echo "Tag: $(cat /workspace/tag)"
+
   # Step 1: Build Docker image with SHA and latest tags
   - name: 'gcr.io/cloud-builders/docker'
+    entrypoint: 'bash'
     args:
-      - 'build'
-      - '-t'
-      - 'docker.io/cybocrime/qwen3-tts:$SHORT_SHA'
-      - '-t'
-      - 'docker.io/cybocrime/qwen3-tts:latest'
-      - '.'
+      - '-c'
+      - |
+        TAG=$(cat /workspace/tag)
+        docker build \
+          -t docker.io/cybocrime/qwen3-tts:${TAG} \
+          -t docker.io/cybocrime/qwen3-tts:latest \
+          .
 
   # Step 2: Login to Docker Hub using secret from Secret Manager
   - name: 'gcr.io/cloud-builders/docker'
@@ -27,14 +42,13 @@ steps:
 
   # Step 3: Push both tags to Docker Hub
   - name: 'gcr.io/cloud-builders/docker'
+    entrypoint: 'bash'
     args:
-      - 'push'
-      - 'docker.io/cybocrime/qwen3-tts:latest'
-
-  - name: 'gcr.io/cloud-builders/docker'
-    args:
-      - 'push'
-      - 'docker.io/cybocrime/qwen3-tts:$SHORT_SHA'
+      - '-c'
+      - |
+        TAG=$(cat /workspace/tag)
+        docker push docker.io/cybocrime/qwen3-tts:latest
+        docker push docker.io/cybocrime/qwen3-tts:${TAG}
 
 # Pull Docker Hub token from Secret Manager
 availableSecrets:
