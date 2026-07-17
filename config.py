@@ -15,6 +15,7 @@
 # limitations under the License.
 
 import os
+from pathlib import Path
 
 # Environment Variables
 HF_TOKEN = os.environ.get("HF_TOKEN")
@@ -58,12 +59,22 @@ VOICES_CONFIG_PATH = os.environ.get("VOICES_CONFIG_PATH", f"{AUDIO_PROMPTS_DIR}/
 
 # VoiceDesign preset library (curated named voices -> instruct strings).
 # Lives in the app repo's bridge/ dir (cloned to /workspace/qwen3-tts/bridge/...).
-APP_DIR = os.environ.get("APP_DIR", "/workspace/qwen3-tts")
-VOICE_PRESETS_PATH = os.environ.get("VOICE_PRESETS_PATH", f"{APP_DIR}/bridge/voices_presets.json")
+_SCRIPT_DIR = Path(__file__).resolve().parent
+_APP_DIR_RESOLVED = str(_SCRIPT_DIR)  # config.py lives in APP_DIR, use its location as canonical
+
+# Use script-relative path (__file__) as primary, env var as override
+APP_DIR = os.environ.get("APP_DIR", _APP_DIR_RESOLVED)
+VOICE_PRESETS_PATH = os.environ.get(
+    "VOICE_PRESETS_PATH",
+    str(_SCRIPT_DIR / "bridge" / "voices_presets.json"),
+)
 
 # Cloned brand voices registry (voice_id -> ref_audio + ref_text).
 # Used by the Base model for real voice cloning (consistent, reproducible voices).
-VOICE_CLONED_PATH = os.environ.get("VOICE_CLONED_PATH", f"{APP_DIR}/bridge/voices_cloned.json")
+VOICE_CLONED_PATH = os.environ.get(
+    "VOICE_CLONED_PATH",
+    str(_SCRIPT_DIR / "bridge" / "voices_cloned.json"),
+)
 
 # Qwen3-TTS CustomVoice supported speakers (built-in, not from audio_prompts)
 CUSTOM_VOICE_SPEAKERS = [

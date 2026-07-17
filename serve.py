@@ -32,6 +32,7 @@ import json
 import logging
 import os
 import traceback
+from pathlib import Path
 
 import uvicorn
 from fastapi import FastAPI, Request
@@ -64,6 +65,35 @@ async def log_endpoint():
     except Exception as e:
         tail = f"(no log: {e})"
     return JSONResponse({"log": tail})
+
+
+@app.get("/diag")
+async def diag():
+    """Diagnostic: check file paths, env, and registries (no model load)."""
+    info = {
+        "cwd": os.getcwd(),
+        "app_dir": config.APP_DIR,
+        "voice_cloned_path": config.VOICE_CLONED_PATH,
+        "voice_presets_path": config.VOICE_PRESETS_PATH,
+    }
+    for key in ("voice_cloned_path", "voice_presets_path"):
+        p = Path(info[key])
+        info[f"{key}_exists"] = p.exists()
+        info[f"{key}_parent_exists"] = p.parent.exists()
+        if p.parent.exists():
+            info[f"{key}_parent_ls"] = [str(x.name) for x in p.parent.iterdir()]
+    # cloned voices from file (does NOT load the model)
+    cloned = get_cloned_voices()
+    info["cloned_voice_count"] = len(cloned)
+    info["cloned_voice_ids"] = list(cloned.keys())
+    # Env vars (non-sensitive keys only)
+    safe_keys = ["MODEL_TYPE", "APP_DIR", "PORT", "RUNPOD_VOLUME", "HOME", "PATH[:100]"]
+    for k in safe_keys:
+        if k == "PATH[:100]":
+            info["PATH"] = os.environ.get("PATH", "")[:100]
+        else:
+            info[k] = os.environ.get(k, "(not set)")
+    return info
 
 
 @app.get("/voices")
