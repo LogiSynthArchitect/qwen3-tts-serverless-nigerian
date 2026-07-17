@@ -47,4 +47,5 @@ RUN python3 -c "import torch; print('torch', torch.__version__, 'CUDA available:
 EXPOSE 8000
 
 # Serve (no git pull, no pip install at boot — everything is baked in)
-CMD ["python", "serve.py"]
+# Base image vastai/pytorch provides python3 (no bare "python" symlink)
+CMD ["python3", "serve.py"]
