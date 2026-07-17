@@ -28,35 +28,19 @@ steps:
       - 'docker.io/cybocrime/qwen3-tts:base'
       - '.'
 
-  # Step 3: Login to Docker Hub using secret from Secret Manager
+  # Step 3: Login + push all four tags in one step (each GCB step
+  # is a fresh container — login credentials don't survive across steps)
   - name: 'gcr.io/cloud-builders/docker'
     entrypoint: 'bash'
     args:
       - '-c'
       - |
         echo "$$DOCKER_HUB_TOKEN" | docker login -u cybocrime --password-stdin
+        docker push docker.io/cybocrime/qwen3-tts:latest
+        docker push docker.io/cybocrime/qwen3-tts:$SHORT_SHA
+        docker push docker.io/cybocrime/qwen3-tts:base
+        docker push docker.io/cybocrime/qwen3-tts:base-$SHORT_SHA
     secretEnv: ['DOCKER_HUB_TOKEN']
-
-  # Step 4: Push all four tags to Docker Hub
-  - name: 'gcr.io/cloud-builders/docker'
-    args:
-      - 'push'
-      - 'docker.io/cybocrime/qwen3-tts:latest'
-
-  - name: 'gcr.io/cloud-builders/docker'
-    args:
-      - 'push'
-      - 'docker.io/cybocrime/qwen3-tts:$SHORT_SHA'
-
-  - name: 'gcr.io/cloud-builders/docker'
-    args:
-      - 'push'
-      - 'docker.io/cybocrime/qwen3-tts:base'
-
-  - name: 'gcr.io/cloud-builders/docker'
-    args:
-      - 'push'
-      - 'docker.io/cybocrime/qwen3-tts:base-$SHORT_SHA'
 
 # Pull Docker Hub token from Secret Manager
 availableSecrets:
