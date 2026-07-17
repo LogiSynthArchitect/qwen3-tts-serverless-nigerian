@@ -1,31 +1,20 @@
 # =============================================================================
 # Google Cloud Build config — Qwen3-TTS Docker image
 #
-# Trigger: push to main branch (set up via Cloud Build web UI)
+# Trigger: push to main branch (works via git push to GitHub)
 # Builds:  docker build → push to Docker Hub (free)
 # Auth:    Docker Hub token stored in Google Secret Manager
 # =============================================================================
 steps:
-  # Step 0: Compute SHA tag (works with both trigger and manual builds)
-  - name: 'bash'
-    entrypoint: 'bash'
-    args:
-      - '-c'
-      - |
-        git rev-parse --short HEAD > /workspace/tag
-        echo "Tag: $$(cat /workspace/tag)"
-
   # Step 1: Build Docker image with SHA and latest tags
   - name: 'gcr.io/cloud-builders/docker'
-    entrypoint: 'bash'
     args:
-      - '-c'
-      - |
-        TAG=$$(cat /workspace/tag)
-        docker build \
-          -t docker.io/cybocrime/qwen3-tts:$${TAG} \
-          -t docker.io/cybocrime/qwen3-tts:latest \
-          .
+      - 'build'
+      - '-t'
+      - 'docker.io/cybocrime/qwen3-tts:$SHORT_SHA'
+      - '-t'
+      - 'docker.io/cybocrime/qwen3-tts:latest'
+      - '.'
 
   # Step 2: Login to Docker Hub using secret from Secret Manager
   - name: 'gcr.io/cloud-builders/docker'
@@ -38,13 +27,14 @@ steps:
 
   # Step 3: Push both tags to Docker Hub
   - name: 'gcr.io/cloud-builders/docker'
-    entrypoint: 'bash'
     args:
-      - '-c'
-      - |
-        TAG=$$(cat /workspace/tag)
-        docker push docker.io/cybocrime/qwen3-tts:latest
-        docker push docker.io/cybocrime/qwen3-tts:$${TAG}
+      - 'push'
+      - 'docker.io/cybocrime/qwen3-tts:latest'
+
+  - name: 'gcr.io/cloud-builders/docker'
+    args:
+      - 'push'
+      - 'docker.io/cybocrime/qwen3-tts:$SHORT_SHA'
 
 # Pull Docker Hub token from Secret Manager
 availableSecrets:
@@ -56,10 +46,6 @@ availableSecrets:
 timeout: '1800s'
 
 # Use GCS-only logging (required when using a custom service account)
-# defaultLogsBucketBehavior auto-creates a user-owned bucket we can read
 options:
   logging: GCS_ONLY
   defaultLogsBucketBehavior: REGIONAL_USER_OWNED_BUCKET
-
-# (Push is handled by manual steps 3+4 above; images field omitted to avoid
-#  conflict where Cloud Build re-pushes after local tags are gone)
