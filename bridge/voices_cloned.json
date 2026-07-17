@@ -21,30 +21,6 @@
       "duration_sec": 78.0,
       "source": "Common Voice Nigerian English (CC0)",
       "status": "real"
-    },
-    "brand_narrator_gh_female": {
-      "name": "Brand Narrator — Nigerian Female (Lagos)",
-      "region": "Nigeria",
-      "country": "NG",
-      "gender": "female",
-      "age": "adult",
-      "ref_audio": "voices_cloned/brand_narrator_gh_female.wav",
-      "ref_text": "This is uh a geese swimming in a full. Hello Yeah. I'm here Okay A dog swimming in a  No. No No No, I didn't click that one. The geese Yes swimming Can you remember where it was? Let me click it again swimming where? Swimming in a pool in a pond What is the color of the water? The water, just normal color. It has some white neck, front neck. The front of the neck is white, the back is black some red dots beside it is mouse under it is eyes Alright red dot under it is eyes, beside it is mouse It has a long mouse. What is the color of the mouth? Brown Brown, yes and some red dots  Wait, the color of the water is what? Just normal color. It is imitating the sky The sky color imitates, not sky color but imitates It is facing right",
-      "duration_sec": 93.0,
-      "source": "Common Voice Nigerian English (CC0)",
-      "status": "real"
-    },
-    "brand_narrator_ke_male": {
-      "name": "Brand Narrator — Nigerian Male (North)",
-      "region": "Nigeria",
-      "country": "NG",
-      "gender": "male",
-      "age": "adult",
-      "ref_audio": "voices_cloned/brand_narrator_ke_male.wav",
-      "ref_text": "I got it. Okay. Then am seeing a bird the bird has yellow color and black color. Its standing on top of a branch. Ok. Like from the neck to the head is yellow then, from the neck to the tail is black. Its standing on a branch with a green background then there is something written.  Yellow headed black bird at the top.  Oh yellow headed black bird.  something is written at the top. Yes I got it lets go.  Oh.  Ok.",
-      "duration_sec": 30.0,
-      "source": "Common Voice Nigerian English (CC0)",
-      "status": "real"
     }
   }
 }

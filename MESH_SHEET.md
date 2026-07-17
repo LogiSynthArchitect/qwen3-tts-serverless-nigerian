@@ -143,15 +143,9 @@ vastai create instance <OFFER_ID> --image cybocrime/qwen3-tts:base --ssh --direc
 | voice_id | Real voice | Accent | Duration | Source |
 |---|---|---|---|---|
 | `brand_narrator_ng_male` | Nigerian male, deep conversational | Nigerian English | 78s | CC0 Common Voice |
-| `brand_narrator_gh_female` | Nigerian female, bright descriptive | Nigerian English | 93s | CC0 Common Voice |
-| `brand_narrator_ke_male` | Nigerian male, calm deliberate | Nigerian English | 30s | CC0 Common Voice |
 
-**⚠ Note:** All three entries currently use Nigerian English speakers (the only
-accent available in the CC0 public corpus sourced). The voice_ids suggest Ghanaian
-and Kenyan origin — they are holding slots for when CC0 audio in those accents
-becomes available. For production brand deployment, **replace with actual
-voice-actor recordings** in the target accents (Nigerian, Ghanaian, Kenyan,
-South African, etc.) where brand-consistent, professional-grade audio is needed.
+Ghanaian and Kenyan entries removed — no CC0 English speech datasets found
+for those accents via CRW. Add them when real voice-actor recordings are sourced.
 
 **Status:** Infra built (2026-07-17). NOT yet E2E-proven on a live Base instance —
 needs a GPU Vast instance running `:base` image. Real CC0 audio in place.
